@@ -1,4 +1,3 @@
-
 export enum Role {
     ADMIN = 'admin',
     EMPLOYEE = 'employee',
@@ -21,6 +20,7 @@ export interface User {
     name: string;
     role: Role;
     avatar: string;
+    accountId?: string;
 }
 
 export interface Task {

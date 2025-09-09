@@ -1,37 +1,69 @@
 import { User, Role, Task, TaskStatus, Chat, Message, Project } from '../types';
 
-// --- MOCK DATA ---
+// --- DATABASE PERSISTENCE LOGIC ---
 
-let users: User[] = [];
+const STORAGE_KEY = 'employee-app-db';
 
-let projects: Project[] = [
-    { id: 'p1', name: 'تطوير الواجهة الأمامية', color: '#3b82f6' },
-    { id: 'p2', name: 'البنية التحتية للسيرفر', color: '#10b981' },
-    { id: 'p3', name: 'حملة التسويق الرقمي', color: '#f97316' },
-];
+interface AppDB {
+    users: User[];
+    projects: Project[];
+    tasks: Task[];
+    chats: Chat[];
+    credentials: Record<string, { password: string; userId: string; }>;
+}
 
-let tasks: Task[] = [];
-
-let chats: Chat[] = [];
-
-const ADMIN_REGISTRATION_KEY = 'super-secret-admin-key-123';
-
-const db = {
-    users,
-    tasks,
-    chats,
-    projects,
+const getDefaultDb = (): AppDB => ({
+    users: [],
+    projects: [
+        { id: 'p1', name: 'تطوير الواجهة الأمامية', color: '#3b82f6' },
+        { id: 'p2', name: 'البنية التحتية للسيرفر', color: '#10b981' },
+        { id: 'p3', name: 'حملة التسويق الرقمي', color: '#f97316' },
+    ],
+    tasks: [],
+    chats: [],
     credentials: {}
+});
+
+const saveDb = (dbToSave: AppDB) => {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(dbToSave));
+    } catch (error) {
+        console.error("Failed to save DB to localStorage:", error);
+    }
 };
 
+const loadDb = (): AppDB => {
+    try {
+        const storedDb = localStorage.getItem(STORAGE_KEY);
+        if (storedDb) {
+            const parsedDb = JSON.parse(storedDb);
+            // Basic validation to ensure the loaded data has the expected structure
+            if (parsedDb.users && parsedDb.credentials && parsedDb.projects) {
+                return parsedDb;
+            }
+        }
+    } catch (error) {
+        console.error("Failed to load DB from localStorage:", error);
+    }
+    const defaultDb = getDefaultDb();
+    saveDb(defaultDb); // Save the default DB if nothing is found or data is corrupt
+    return defaultDb;
+};
+
+let db: AppDB = loadDb();
+
+
+// --- MOCK DATA & HELPERS ---
+
+const ADMIN_REGISTRATION_KEY = 'super-secret-admin-key-123';
+const generateAccountId = () => Math.floor(100000 + Math.random() * 900000).toString();
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 // --- API FUNCTIONS ---
 
 export const mockLogin = async (username: string, password: string): Promise<User | null> => {
     await delay(500);
-    // Use the full username for login lookup
-    const creds = (db.credentials as any)[username];
+    const creds = db.credentials[username];
     if (creds && creds.password === password) {
         return db.users.find(u => u.id === creds.userId) || null;
     }
@@ -45,7 +77,7 @@ export const mockRegisterAdmin = async (username: string, password: string, admi
         throw new Error('مفتاح تسجيل المدراء غير صحيح.');
     }
 
-    if ((db.credentials as any)[username]) {
+    if (db.credentials[username]) {
         throw new Error('اسم المستخدم هذا موجود بالفعل.');
     }
 
@@ -55,10 +87,13 @@ export const mockRegisterAdmin = async (username: string, password: string, admi
         name: username,
         role: Role.ADMIN,
         avatar: `https://i.pravatar.cc/150?u=${newId}`,
+        accountId: generateAccountId(),
     };
 
     db.users.push(newUser);
-    (db.credentials as any)[username] = { password, userId: newUser.id };
+    db.credentials[username] = { password, userId: newUser.id };
+    
+    saveDb(db);
     
     return newUser;
 };
@@ -84,20 +119,20 @@ export const createProject = async (projectData: Omit<Project, 'id'>): Promise<P
         id: `p${Date.now()}`,
     };
     db.projects.push(newProject);
+    saveDb(db);
     return newProject;
 };
 
 export const deleteProject = async (projectId: string): Promise<void> => {
     await delay(300);
-    // Unassign tasks from this project
     db.tasks = db.tasks.map(task => {
         if (task.projectId === projectId) {
             return { ...task, projectId: null };
         }
         return task;
     });
-    // Delete the project
     db.projects = db.projects.filter(p => p.id !== projectId);
+    saveDb(db);
 };
 
 
@@ -118,6 +153,7 @@ export const createTask = async (taskData: Omit<Task, 'id'>): Promise<Task> => {
         id: `t${Date.now()}`,
     };
     db.tasks.unshift(newTask);
+    saveDb(db);
     return newTask;
 };
 
@@ -127,6 +163,7 @@ export const updateTask = async (taskId: string, updates: Partial<Task>): Promis
     if (!taskToUpdate) throw new Error('Task not found');
     taskToUpdate = { ...taskToUpdate, ...updates };
     db.tasks = db.tasks.map(t => (t.id === taskId ? taskToUpdate! : t));
+    saveDb(db);
     return taskToUpdate;
 };
 
@@ -141,6 +178,7 @@ export const sendMessage = async (chatId: string, senderId: string, text: string
     const chat = db.chats.find(c => c.id === chatId);
     if (chat) {
         chat.messages.push(newMessage);
+        saveDb(db);
     }
     return newMessage;
 };
@@ -173,22 +211,30 @@ export const findOrCreateChat = async (userId1: string, userId2:string): Promise
     };
 
     db.chats.unshift(newChat);
+    saveDb(db);
     return newChat;
 };
 
-export const createUser = async (userData: Omit<User, 'id'>, password: string): Promise<User> => {
+export const createUser = async (userData: Omit<User, 'id' | 'accountId'>, password: string): Promise<User> => {
     await delay(400);
+    
+    if (db.credentials[userData.name]) {
+        throw new Error('اسم المستخدم هذا موجود بالفعل.');
+    }
+
     const newId = `u${Date.now()}`;
     const newUser: User = {
         id: newId,
         name: userData.name,
         role: userData.role,
-        avatar: userData.avatar, // The avatar is now passed in userData
+        avatar: userData.avatar,
+        ...(userData.role === Role.ADMIN && { accountId: generateAccountId() })
     };
+    
     db.users.push(newUser);
-    // Use the full name as the username key
     const username = userData.name;
-    (db.credentials as any)[username] = { password, userId: newUser.id };
+    db.credentials[username] = { password, userId: newUser.id };
+    saveDb(db);
     return newUser;
 };
 
@@ -197,26 +243,36 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
     let userToUpdate = db.users.find(u => u.id === userId);
     if (!userToUpdate) throw new Error('User not found');
 
-    // If name is being updated, handle credential key change
     if (updates.name && updates.name !== userToUpdate.name) {
         const oldUsername = userToUpdate.name;
         const newUsername = updates.name;
         
-        if ((db.credentials as any)[oldUsername]) {
-            (db.credentials as any)[newUsername] = (db.credentials as any)[oldUsername];
-            delete (db.credentials as any)[oldUsername];
+        if (db.credentials[newUsername]) {
+            throw new Error('اسم المستخدم الجديد موجود بالفعل.');
+        }
+
+        if (db.credentials[oldUsername]) {
+            db.credentials[newUsername] = db.credentials[oldUsername];
+            delete db.credentials[oldUsername];
         }
     }
+    
+    if(updates.role === Role.ADMIN && !userToUpdate.accountId){
+        updates.accountId = generateAccountId();
+    } else if (updates.role === Role.EMPLOYEE && userToUpdate.accountId) {
+        updates.accountId = undefined;
+    }
+
 
     userToUpdate = { ...userToUpdate, ...updates };
     db.users = db.users.map(u => (u.id === userId ? userToUpdate! : u));
+    saveDb(db);
     return userToUpdate;
 };
 
 export const deleteUser = async (userId: string): Promise<void> => {
     await delay(300);
 
-    // Unassign the user from all tasks
     db.tasks = db.tasks.map(task => {
         if (task.assigneeIds.includes(userId)) {
             return {
@@ -227,12 +283,9 @@ export const deleteUser = async (userId: string): Promise<void> => {
         return task;
     });
 
-    // Remove user from chats, remove their messages, and clean up empty chats
     const updatedChats = db.chats
         .map(chat => {
-            // Remove user's messages
             const filteredMessages = chat.messages.filter(message => message.senderId !== userId);
-            // Remove user from participants
             const filteredParticipants = chat.participantIds.filter(id => id !== userId);
 
             return {
@@ -242,8 +295,6 @@ export const deleteUser = async (userId: string): Promise<void> => {
             };
         })
         .filter(chat => {
-            // A chat is only valid if it has at least 2 participants.
-            // This will remove 1-on-1 chats when one person is deleted.
             return chat.participantIds.length >= (chat.isGroup ? 1 : 2);
         });
     db.chats = updatedChats;
@@ -251,11 +302,31 @@ export const deleteUser = async (userId: string): Promise<void> => {
 
     const userToDelete = db.users.find(u => u.id === userId);
     if (userToDelete) {
-        // Use the full name to delete the credential
         const username = userToDelete.name;
-        delete (db.credentials as any)[username];
+        delete db.credentials[username];
     }
     
-    // Remove the user from the users array
     db.users = db.users.filter(u => u.id !== userId);
+    saveDb(db);
+};
+
+export const findAdminByAccountId = async (accountId: string): Promise<User | null> => {
+    await delay(300);
+    const admin = db.users.find(u => u.role === Role.ADMIN && u.accountId === accountId);
+    return admin || null;
+}
+
+export const createGroupChat = async (name: string, participantIds: string[], createdBy: string): Promise<Chat> => {
+    await delay(400);
+    const allParticipants = [...new Set([createdBy, ...participantIds])];
+    const newChat: Chat = {
+        id: `cg${Date.now()}`,
+        name,
+        participantIds: allParticipants,
+        messages: [],
+        isGroup: true,
+    };
+    db.chats.unshift(newChat);
+    saveDb(db);
+    return newChat;
 };

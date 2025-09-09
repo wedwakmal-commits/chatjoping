@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Chat, User } from '../types';
-import { getChats, getUsers, sendMessage as apiSendMessage, findOrCreateChat } from '../services/api';
+import { Chat, User, Role } from '../types';
+import { getChats, getUsers, sendMessage as apiSendMessage, findOrCreateChat, findAdminByAccountId, createGroupChat } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import CreateGroupModal from '../components/CreateGroupModal';
 
 const ChatPage: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -13,12 +14,20 @@ const ChatPage: React.FC = () => {
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const previousChatsRef = useRef<Chat[]>([]);
+    
+    // Admin specific states
+    const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+    const [adminSearchId, setAdminSearchId] = useState('');
+    const [foundAdmin, setFoundAdmin] = useState<User | null>(null);
+    const [searchError, setSearchError] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
+
+    const isAdmin = currentUser?.role === Role.ADMIN;
 
     useEffect(() => {
         previousChatsRef.current = chats;
     }, [chats]);
 
-    // Initial data fetch
     useEffect(() => {
         const fetchData = async () => {
             if (!currentUser) return;
@@ -30,55 +39,46 @@ const ChatPage: React.FC = () => {
             }
         };
         fetchData();
-    }, [currentUser, activeChatId]); // re-check activeChatId to avoid race condition on first load
+    }, [currentUser]);
 
-    // Scroll to bottom when new messages arrive or chat is changed
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [activeChatId, chats]);
 
-    // Polling for new messages and showing notifications
     useEffect(() => {
         if (!currentUser) return;
 
         const intervalId = setInterval(async () => {
-            const [newChats, allUsers] = await Promise.all([getChats(currentUser.id), getUsers()]);
-            const oldChats = previousChatsRef.current;
+            const newChats = await getChats(currentUser.id);
+            const allUsers = await getUsers();
             let hasNewData = false;
-
-            newChats.forEach(newChat => {
-                const oldChat = oldChats.find(c => c.id === newChat.id);
-                
-                if (!oldChat && newChat.messages.length > 0) {
-                     const firstMessage = newChat.messages[0];
-                     if(firstMessage && firstMessage.senderId !== currentUser.id){
-                         const sender = allUsers.find(u => u.id === firstMessage.senderId);
-                         addToast({
-                            type: 'info',
-                            message: `${sender ? sender.name : 'مستخدم'} بدأ محادثة جديدة معك.`
-                         });
-                         hasNewData = true;
-                     }
-                } else if (oldChat && newChat.messages.length > oldChat.messages.length) {
-                    const lastMessage = newChat.messages[newChat.messages.length - 1];
-                    if (lastMessage.senderId !== currentUser.id) {
-                        if (newChat.id !== activeChatId) {
-                            const sender = allUsers.find(u => u.id === lastMessage.senderId);
-                            addToast({
-                                type: 'info',
-                                message: `رسالة جديدة من ${sender ? sender.name : 'مستخدم'}:\n"${lastMessage.text}"`,
-                            });
+            
+            if (newChats.length !== previousChatsRef.current.length) {
+                hasNewData = true;
+            } else {
+                 newChats.forEach(newChat => {
+                    const oldChat = previousChatsRef.current.find(c => c.id === newChat.id);
+                    if (oldChat && newChat.messages.length > oldChat.messages.length) {
+                        const lastMessage = newChat.messages[newChat.messages.length - 1];
+                        if (lastMessage.senderId !== currentUser.id) {
+                            if (newChat.id !== activeChatId) {
+                                const sender = allUsers.find(u => u.id === lastMessage.senderId);
+                                addToast({
+                                    type: 'info',
+                                    message: `رسالة جديدة من ${sender ? sender.name : 'مستخدم'} في "${newChat.name}"`,
+                                });
+                            }
                         }
                         hasNewData = true;
                     }
-                }
-            });
-
-            if (hasNewData) {
-                setChats(newChats);
+                });
+            }
+           
+            if(hasNewData) {
+                 setChats(newChats);
             }
 
-        }, 3000); // Poll every 3 seconds
+        }, 5000); 
 
         return () => clearInterval(intervalId);
     }, [currentUser, activeChatId, addToast]);
@@ -119,6 +119,45 @@ const ChatPage: React.FC = () => {
         setActiveChatId(chat.id);
     };
 
+    const handleAdminSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSearchError('');
+        setFoundAdmin(null);
+        if (!adminSearchId.trim()) return;
+        setIsSearching(true);
+        try {
+            const admin = await findAdminByAccountId(adminSearchId.trim());
+            if (admin && admin.id !== currentUser?.id) {
+                setFoundAdmin(admin);
+            } else if (admin?.id === currentUser?.id) {
+                setSearchError('لا يمكنك البحث عن نفسك.');
+            } else {
+                setSearchError('لم يتم العثور على مدير بهذا الرقم.');
+            }
+        } catch {
+            setSearchError('حدث خطأ أثناء البحث.');
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleStartChatWithFoundAdmin = async () => {
+        if (!foundAdmin) return;
+        await handleStartNewChat(foundAdmin.id);
+        setFoundAdmin(null);
+        setAdminSearchId('');
+        setSearchError('');
+    };
+
+    const handleCreateGroup = async (groupData: { name: string; participantIds: string[] }) => {
+        if (!currentUser) return;
+        const newGroup = await createGroupChat(groupData.name, groupData.participantIds, currentUser.id);
+        setChats(prev => [newGroup, ...prev]);
+        setActiveChatId(newGroup.id);
+        setIsGroupModalOpen(false);
+        addToast({ type: 'success', message: `تم إنشاء مجموعة "${newGroup.name}"!` });
+    };
+
     if (!currentUser) return null;
 
     const usersToChatWith = users.filter(user => {
@@ -129,11 +168,44 @@ const ChatPage: React.FC = () => {
 
     return (
         <div className="flex h-full">
-            {/* Chat List */}
             <div className="w-1/3 xl:w-1/4 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
                 <div className="p-4 border-b dark:border-gray-700">
                     <h2 className="text-xl font-bold">الدردشة</h2>
                 </div>
+                
+                {isAdmin && (
+                    <div className="p-4 border-b dark:border-gray-700 space-y-4">
+                        <button onClick={() => setIsGroupModalOpen(true)} className="w-full px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow">
+                            + إنشاء مجموعة جديدة
+                        </button>
+                        <div>
+                             <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 tracking-wider mb-2">البحث عن مدير</h3>
+                             <form onSubmit={handleAdminSearch} className="flex space-x-2 space-x-reverse">
+                                 <input 
+                                     type="text"
+                                     placeholder="أدخل رقم حساب المدير..."
+                                     value={adminSearchId}
+                                     onChange={e => setAdminSearchId(e.target.value)}
+                                     className="flex-1 min-w-0 px-3 py-2 text-sm border rounded-md dark:bg-gray-600 dark:border-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                 />
+                                 <button type="submit" disabled={isSearching} className="px-3 py-1 text-xs rounded-md text-white bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400">
+                                     {isSearching ? '...' : 'بحث'}
+                                 </button>
+                             </form>
+                             {searchError && <p className="text-xs text-red-500 mt-2">{searchError}</p>}
+                             {foundAdmin && (
+                                 <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-between">
+                                     <div className="flex items-center">
+                                        <img src={foundAdmin.avatar} alt={foundAdmin.name} className="w-8 h-8 rounded-full" />
+                                        <p className="mr-2 text-sm font-semibold">{foundAdmin.name}</p>
+                                     </div>
+                                     <button onClick={handleStartChatWithFoundAdmin} className="px-2 py-1 text-xs rounded-md text-white bg-green-600 hover:bg-green-700">بدء الدردشة</button>
+                                 </div>
+                             )}
+                        </div>
+                    </div>
+                )}
+                
                 <div className="flex-1 overflow-y-auto">
                      <div className="p-3">
                          <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 tracking-wider">المحادثات الحالية</h3>
@@ -183,7 +255,6 @@ const ChatPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Chat Window */}
             <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
                 {activeChat ? (
                     <>
@@ -223,6 +294,15 @@ const ChatPage: React.FC = () => {
                     </div>
                 )}
             </div>
+            
+            {isAdmin && (
+                <CreateGroupModal
+                    isOpen={isGroupModalOpen}
+                    onClose={() => setIsGroupModalOpen(false)}
+                    onSave={handleCreateGroup}
+                    users={users}
+                />
+            )}
         </div>
     );
 };
