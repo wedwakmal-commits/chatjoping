@@ -1,0 +1,52 @@
+
+export enum Role {
+    ADMIN = 'admin',
+    EMPLOYEE = 'employee',
+}
+
+export enum TaskStatus {
+    PENDING = 'قيد التنفيذ',
+    COMPLETED = 'مكتملة',
+    ON_HOLD = 'معلقة',
+}
+
+export interface Project {
+    id: string;
+    name: string;
+    color: string;
+}
+
+export interface User {
+    id: string;
+    name: string;
+    role: Role;
+    avatar: string;
+}
+
+export interface Task {
+    id: string;
+    title: string;
+    description: string;
+    assigneeIds: string[];
+    dueDate: string;
+    status: TaskStatus;
+    createdBy: string;
+    projectId?: string | null;
+}
+
+export interface Message {
+    id: string;
+    senderId: string;
+    text: string;
+    timestamp: string;
+    imageUrl?: string;
+    documentUrl?: string;
+}
+
+export interface Chat {
+    id: string;
+    name: string;
+    participantIds: string[];
+    messages: Message[];
+    isGroup: boolean;
+}
