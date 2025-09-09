@@ -4,14 +4,19 @@ import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import { importData } from '../services/api';
 import { AppDB } from '../types';
+import { LanguageIcon } from '../components/icons';
 
 const LoginPage: React.FC = () => {
     const { login, registerAdmin } = useAuth();
-    const { t } = useLanguage();
+    const { language, setLanguage, t } = useLanguage();
     const { addToast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const toggleLanguage = () => {
+        setLanguage(language === 'ar' ? 'en' : 'ar');
+    };
 
     const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -103,7 +108,17 @@ const LoginPage: React.FC = () => {
     );
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
+        <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 p-4 relative">
+            <div className="absolute top-6 end-6">
+                <button 
+                    onClick={toggleLanguage}
+                    className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg shadow-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                    <LanguageIcon className="w-5 h-5"/>
+                    <span>{t('language')}</span>
+                </button>
+            </div>
+
             <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden">
                 <div className="flex">
                     <TabButton tab="login" label={t('loginPage.loginTab')} />

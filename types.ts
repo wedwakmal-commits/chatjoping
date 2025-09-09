@@ -41,6 +41,7 @@ export interface Message {
     timestamp: string;
     imageUrl?: string;
     documentUrl?: string;
+    readBy: string[];
 }
 
 export interface Chat {

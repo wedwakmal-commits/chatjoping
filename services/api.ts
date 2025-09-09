@@ -228,7 +228,7 @@ export const createChat = async (chatData: { name: string; participantIds: strin
     return newChat;
 };
 
-export const sendMessage = async (chatId: string, messageData: Omit<Message, 'id' | 'timestamp'>): Promise<Message> => {
+export const sendMessage = async (chatId: string, messageData: Omit<Message, 'id' | 'timestamp' | 'readBy'>): Promise<Message> => {
     await delay(100);
     const chat = db.chats.find(c => c.id === chatId);
     if (!chat) throw new Error("Chat not found");
@@ -237,16 +237,58 @@ export const sendMessage = async (chatId: string, messageData: Omit<Message, 'id
         id: `msg-${Date.now()}`,
         ...messageData,
         timestamp: new Date().toISOString(),
+        readBy: [],
     };
     chat.messages.push(newMessage);
     saveDB();
     return newMessage;
 };
 
+export const markMessagesAsRead = async (chatId: string, readerId: string): Promise<void> => {
+    await delay(50);
+    const chat = db.chats.find(c => c.id === chatId);
+    if (chat) {
+        chat.messages.forEach(message => {
+            if (message.senderId !== readerId && !message.readBy.includes(readerId)) {
+                message.readBy.push(readerId);
+            }
+        });
+        saveDB();
+    }
+};
+
 export const searchAdminByAccountId = async (accountId: string): Promise<User | null> => {
     await delay(500);
     const user = db.users.find(u => u.accountId === accountId && u.role === Role.ADMIN);
     return user || null;
+};
+
+// In-memory state for typing indicators, not persisted
+let typingIndicators: Record<string, { userId: string, timestamp: number }[]> = {};
+
+export const startTyping = async (chatId: string, userId: string): Promise<void> => {
+    if (!typingIndicators[chatId]) {
+        typingIndicators[chatId] = [];
+    }
+    const now = Date.now();
+    typingIndicators[chatId] = typingIndicators[chatId].filter(u => u.userId !== userId);
+    typingIndicators[chatId].push({ userId, timestamp: now });
+};
+
+export const stopTyping = async (chatId: string, userId: string): Promise<void> => {
+    if (typingIndicators[chatId]) {
+        typingIndicators[chatId] = typingIndicators[chatId].filter(u => u.userId !== userId);
+    }
+};
+
+export const getTypingUsers = async (chatId: string): Promise<string[]> => {
+    const now = Date.now();
+    if (typingIndicators[chatId]) {
+        // Filter out users who stopped typing more than 3 seconds ago
+        typingIndicators[chatId] = typingIndicators[chatId].filter(u => now - u.timestamp < 3000);
+        return typingIndicators[chatId].map(u => u.userId);
+    }
+    return [];
 };
 
 

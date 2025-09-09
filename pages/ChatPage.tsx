@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Chat, User, Message } from '../types';
-import { getChats, getUsers, createChat, sendMessage, searchAdminByAccountId } from '../services/api';
+import { getChats, getUsers, createChat, sendMessage, searchAdminByAccountId, markMessagesAsRead, getTypingUsers, startTyping, stopTyping } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import CreateGroupModal from '../components/CreateGroupModal';
+import { SearchIcon, CloseIcon, ChevronUpIcon, ChevronDownIcon, CheckCircleIcon } from '../components/icons';
+import { useDebouncedCallback } from 'use-debounce';
 
 const ChatPage: React.FC = () => {
     const [chats, setChats] = useState<Chat[]>([]);
@@ -15,33 +17,111 @@ const ChatPage: React.FC = () => {
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [searchAccountId, setSearchAccountId] = useState('');
+    const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<string[]>([]);
+    const [currentResultIndex, setCurrentResultIndex] = useState(-1);
+
     const { user: currentUser } = useAuth();
     const { t } = useLanguage();
     const { addToast } = useToast();
     const messageEndRef = useRef<HTMLDivElement>(null);
+    const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     const fetchData = useCallback(async () => {
-        setIsLoading(true);
+        // No loading indicator on refetch to avoid flicker
         try {
             const [fetchedChats, fetchedUsers] = await Promise.all([getChats(), getUsers()]);
             setChats(fetchedChats);
             setUsers(fetchedUsers);
+            
+            if (activeChat) {
+                const updatedActiveChat = fetchedChats.find(c => c.id === activeChat.id);
+                if (updatedActiveChat) {
+                    setActiveChat(updatedActiveChat);
+                } else {
+                    setActiveChat(null); // Active chat was deleted
+                }
+            }
         } catch (error) {
             console.error("Failed to fetch chat data:", error);
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [activeChat]);
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 5000); // Poll for new messages
+        const interval = setInterval(fetchData, 5000);
         return () => clearInterval(interval);
     }, [fetchData]);
 
     useEffect(() => {
-        messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [activeChat?.messages]);
+        if (!searchQuery) {
+            messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [activeChat?.messages, searchQuery]);
+
+     useEffect(() => {
+        if (activeChat && currentUser) {
+            markMessagesAsRead(activeChat.id, currentUser.id);
+        }
+        // Reset search on chat change
+        setSearchQuery('');
+        setSearchResults([]);
+        setCurrentResultIndex(-1);
+    }, [activeChat?.id, currentUser]);
+
+    // Typing indicators polling
+    useEffect(() => {
+        if (!activeChat) return;
+
+        const pollTyping = async () => {
+            const typingIds = await getTypingUsers(activeChat.id);
+            setTypingUserIds(typingIds.filter(id => id !== currentUser?.id));
+        };
+        const intervalId = setInterval(pollTyping, 2000);
+        return () => clearInterval(intervalId);
+    }, [activeChat, currentUser?.id]);
+    
+    // Search logic
+    useEffect(() => {
+        if (searchQuery && activeChat) {
+            const results = activeChat.messages
+                .filter(msg => msg.text.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map(msg => msg.id);
+            setSearchResults(results);
+            setCurrentResultIndex(results.length > 0 ? 0 : -1);
+        } else {
+            setSearchResults([]);
+            setCurrentResultIndex(-1);
+        }
+    }, [searchQuery, activeChat]);
+
+    // Scroll to search result
+    useEffect(() => {
+        if (currentResultIndex !== -1 && searchResults[currentResultIndex]) {
+            const messageId = searchResults[currentResultIndex];
+            messageRefs.current.get(messageId)?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
+        }
+    }, [currentResultIndex, searchResults]);
+
+    const debouncedTyping = useDebouncedCallback(() => {
+        if (activeChat && currentUser) {
+            stopTyping(activeChat.id, currentUser.id);
+        }
+    }, 2000);
+
+    const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setMessage(e.target.value);
+        if (activeChat && currentUser) {
+            startTyping(activeChat.id, currentUser.id);
+            debouncedTyping();
+        }
+    };
     
     const getUserById = (id: string) => users.find(u => u.id === id);
 
@@ -56,10 +136,10 @@ const ChatPage: React.FC = () => {
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!message.trim() || !activeChat || !currentUser) return;
-
+        
+        stopTyping(activeChat.id, currentUser.id);
         const sentMessage = await sendMessage(activeChat.id, { text: message.trim(), senderId: currentUser.id });
         
-        // Update local state immediately for better UX
         const updatedChats = chats.map(c => 
             c.id === activeChat.id 
             ? { ...c, messages: [...c.messages, sentMessage] } 
@@ -90,7 +170,6 @@ const ChatPage: React.FC = () => {
         try {
             const admin = await searchAdminByAccountId(searchAccountId);
             if (admin) {
-                // Check if a chat already exists
                 const existingChat = chats.find(c => !c.isGroup && c.participantIds.includes(admin.id) && c.participantIds.includes(currentUser.id));
                 if (existingChat) {
                     setActiveChat(existingChat);
@@ -109,8 +188,57 @@ const ChatPage: React.FC = () => {
             setIsSearching(false);
         }
     };
-    
+
+    const handleSearchResultNavigation = (direction: 'next' | 'prev') => {
+        if (searchResults.length === 0) return;
+        let nextIndex = currentResultIndex;
+        if (direction === 'next') {
+            nextIndex = (currentResultIndex + 1) % searchResults.length;
+        } else {
+            nextIndex = (currentResultIndex - 1 + searchResults.length) % searchResults.length;
+        }
+        setCurrentResultIndex(nextIndex);
+    };
+
+    const highlightText = (text: string, highlight: string) => {
+        if (!highlight.trim()) {
+            return <span>{text}</span>;
+        }
+        const regex = new RegExp(`(${highlight})`, 'gi');
+        const parts = text.split(regex);
+        return (
+            <span>
+                {parts.map((part, i) =>
+                    regex.test(part) ? (
+                        <mark key={i} className="bg-yellow-300 dark:bg-yellow-500 rounded px-0.5">
+                            {part}
+                        </mark>
+                    ) : (
+                        part
+                    )
+                )}
+            </span>
+        );
+    };
+
+    const typingUsers = useMemo(() => typingUserIds.map(getUserById).filter(Boolean) as User[], [typingUserIds, users]);
+
     const userChats = chats.filter(c => c.participantIds.includes(currentUser?.id || ''));
+
+    const ReadReceipt: React.FC<{ message: Message }> = ({ message }) => {
+        if (!currentUser || message.senderId !== currentUser.id) return null;
+        
+        const isReadByOthers = message.readBy.some(id => id !== currentUser.id);
+
+        return (
+            <div className="me-1">
+                <CheckCircleIcon 
+                    className={`w-4 h-4 ${isReadByOthers ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} 
+                    isDouble={isReadByOthers}
+                />
+            </div>
+        );
+    };
 
     return (
         <div className="flex h-full bg-gray-100 dark:bg-gray-900">
@@ -152,20 +280,59 @@ const ChatPage: React.FC = () => {
             <main className="flex-1 flex flex-col">
                 {activeChat ? (
                     <>
-                        <header className="h-16 flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center px-6">
+                        <header className="h-16 flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6">
                             <h3 className="font-bold text-gray-800 dark:text-white">{getChatName(activeChat)}</h3>
+                             <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                <SearchIcon className="w-5 h-5 text-gray-500 dark:text-gray-400 ms-2" />
+                                <input
+                                    type="text"
+                                    placeholder={t('chatPage.searchInConversation')}
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="px-2 py-1.5 text-sm bg-transparent focus:outline-none w-40"
+                                />
+                                {searchQuery && (
+                                    <>
+                                        {searchResults.length > 0 && (
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 px-1">
+                                                {currentResultIndex + 1}/{searchResults.length}
+                                            </span>
+                                        )}
+                                        <button onClick={() => handleSearchResultNavigation('prev')} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"><ChevronUpIcon className="w-4 h-4"/></button>
+                                        <button onClick={() => handleSearchResultNavigation('next')} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"><ChevronDownIcon className="w-4 h-4"/></button>
+                                        <button onClick={() => setSearchQuery('')} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 me-1"><CloseIcon className="w-4 h-4"/></button>
+                                    </>
+                                )}
+                            </div>
                         </header>
                         <div className="flex-1 overflow-y-auto p-6 space-y-4">
                             {activeChat.messages.map(msg => {
                                 const sender = getUserById(msg.senderId);
                                 const isMe = msg.senderId === currentUser?.id;
+                                const isCurrentSearchResult = searchResults[currentResultIndex] === msg.id;
                                 return (
-                                    <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                    <div 
+                                        key={msg.id}
+                                        // FIX: The ref callback should not return a value. 
+                                        // Map.set returns the map, and Map.delete returns a boolean, both of which are invalid.
+                                        // Wrapping the logic in a block with explicit statements fixes this.
+                                        ref={el => {
+                                            if (el) {
+                                                messageRefs.current.set(msg.id, el);
+                                            } else {
+                                                messageRefs.current.delete(msg.id);
+                                            }
+                                        }}
+                                        className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'} ${isCurrentSearchResult ? 'scale-105 transition-transform duration-300' : ''}`}
+                                    >
                                         {!isMe && sender && <img src={sender.avatar} alt={sender.name} className="w-8 h-8 rounded-full" />}
                                         <div className={`max-w-md p-3 rounded-xl ${isMe ? 'bg-indigo-500 text-white rounded-br-none' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'}`}>
                                             {!isMe && <p className="text-xs font-bold mb-1 text-indigo-600 dark:text-indigo-400">{sender?.name}</p>}
-                                            <p className="text-sm">{msg.text}</p>
-                                            <p className="text-xs opacity-70 mt-1 text-end">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                            <p className="text-sm">{highlightText(msg.text, searchQuery)}</p>
+                                            <div className="text-xs opacity-70 mt-1 flex items-center justify-end">
+                                                <ReadReceipt message={msg} />
+                                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -173,8 +340,13 @@ const ChatPage: React.FC = () => {
                              <div ref={messageEndRef} />
                         </div>
                         <footer className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                            <div className="h-5 text-xs text-gray-500 dark:text-gray-400 italic ps-4">
+                                {typingUsers.length > 0 && 
+                                    `${typingUsers.map(u => u.name).join(', ')} ${t('chatPage.isTyping')}`
+                                }
+                            </div>
                             <form onSubmit={handleSendMessage} className="flex items-center space-x-3">
-                                <input type="text" value={message} onChange={e => setMessage(e.target.value)} placeholder={t('chatPage.typeMessagePlaceholder')} className="flex-1 px-4 py-2 border rounded-full bg-gray-100 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <input type="text" value={message} onChange={handleMessageChange} placeholder={t('chatPage.typeMessagePlaceholder')} className="flex-1 px-4 py-2 border rounded-full bg-gray-100 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                 <button type="submit" className="px-5 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700">{t('chatPage.send')}</button>
                             </form>
                         </footer>

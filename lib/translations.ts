@@ -99,6 +99,8 @@ export const translations = {
       send: "إرسال",
       newGroupSuccess: "تم إنشاء مجموعة \"{groupName}\"!",
       newMessageFrom: "رسالة جديدة من {senderName} في \"{chatName}\"",
+      isTyping: "يكتب...",
+      searchInConversation: "ابحث في المحادثة...",
     },
     // Create Group Modal
     createGroupModal: {
@@ -311,6 +313,8 @@ export const translations = {
       send: "Send",
       newGroupSuccess: "Group \"{groupName}\" has been created!",
       newMessageFrom: "New message from {senderName} in \"{chatName}\"",
+      isTyping: "is typing...",
+      searchInConversation: "Search in conversation...",
     },
     // Create Group Modal
     createGroupModal: {
