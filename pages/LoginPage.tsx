@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { TaskIcon, LanguageIcon } from '../components/icons';
+import { TaskIcon, LanguageIcon, ImportIcon } from '../components/icons';
 import { useLanguage } from '../context/LanguageContext';
+import { importDbFromString } from '../services/api';
+import { useToast } from '../context/ToastContext';
+import ConfirmationModal from '../components/ConfirmationModal';
+
 
 const LoginPage: React.FC = () => {
     type AuthMode = 'login' | 'register';
     const { language, setLanguage, t } = useLanguage();
+    const { addToast } = useToast();
     const [mode, setMode] = useState<AuthMode>('login');
     
     // Login States
@@ -22,6 +27,10 @@ const LoginPage: React.FC = () => {
     const [regError, setRegError] = useState('');
     const [isRegistering, setIsRegistering] = useState(false);
     
+    // Import state
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
+
     const { login, registerAdmin } = useAuth();
 
     const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -62,6 +71,36 @@ const LoginPage: React.FC = () => {
     
     const toggleLanguage = () => {
         setLanguage(language === 'ar' ? 'en' : 'ar');
+    };
+
+    const handleConfirmImport = () => {
+        setIsImportConfirmOpen(false);
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const text = e.target?.result as string;
+                if (importDbFromString(text)) {
+                    addToast({ type: 'success', message: t('toasts.importSuccess') });
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    addToast({ type: 'error', message: t('toasts.importErrorInvalidFile') });
+                }
+            } catch (error) {
+                addToast({ type: 'error', message: t('toasts.importErrorGeneric') });
+            } finally {
+                if (event.target) {
+                    event.target.value = '';
+                }
+            }
+        };
+        reader.readAsText(file);
     };
 
     return (
@@ -163,7 +202,37 @@ const LoginPage: React.FC = () => {
                         </form>
                     </div>
                 )}
+
+                <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                        <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+                    </div>
+                    <div className="relative flex justify-center">
+                        <span className="bg-white dark:bg-gray-800 px-2 text-sm text-gray-500 dark:text-gray-400">{t('loginPage.or')}</span>
+                    </div>
+                </div>
+
+                <div>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".json" />
+                    <button
+                        onClick={() => setIsImportConfirmOpen(true)}
+                        className="group relative w-full flex justify-center items-center gap-2 py-2 px-4 border border-gray-300 dark:border-gray-500 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                        <ImportIcon className="w-5 h-5" />
+                        {t('loginPage.importData')}
+                    </button>
+                </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={isImportConfirmOpen}
+                onClose={() => setIsImportConfirmOpen(false)}
+                onConfirm={handleConfirmImport}
+                title={t('confirmationModal.importWarningTitle')}
+                message={t('confirmationModal.importWarningMessage')}
+                confirmButtonClass="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
+                confirmButtonText={t('confirmationModal.importConfirm')}
+            />
         </div>
     );
 };

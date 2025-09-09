@@ -1,16 +1,8 @@
-import { User, Role, Task, TaskStatus, Chat, Message, Project } from '../types';
+import { User, Role, Task, Chat, Message, Project, AppDB } from '../types';
 
 // --- DATABASE PERSISTENCE LOGIC ---
 
 const STORAGE_KEY = 'employee-app-db';
-
-interface AppDB {
-    users: User[];
-    projects: Project[];
-    tasks: Task[];
-    chats: Chat[];
-    credentials: Record<string, { password: string; userId: string; }>;
-}
 
 const getDefaultDb = (): AppDB => ({
     users: [],
@@ -39,9 +31,8 @@ const loadDb = (): AppDB => {
         const storedDb = localStorage.getItem(STORAGE_KEY);
         if (storedDb) {
             const parsedDb: AppDB = JSON.parse(storedDb);
-            // Basic validation and migration
+            
             if (parsedDb.users && parsedDb.credentials && parsedDb.projects) {
-                // Migration logic: ensure all users have an accountId
                 let dbModified = false;
                 parsedDb.users = parsedDb.users.map(user => {
                     if (!user.accountId) {
@@ -61,7 +52,7 @@ const loadDb = (): AppDB => {
         console.error("Failed to load DB from localStorage:", error);
     }
     const defaultDb = getDefaultDb();
-    saveDb(defaultDb); // Save the default DB if nothing is found or data is corrupt
+    saveDb(defaultDb);
     return defaultDb;
 };
 
@@ -74,12 +65,42 @@ const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 // --- API FUNCTIONS ---
 
+export const exportDbAsString = (): string => {
+    const db = loadDb();
+    return JSON.stringify(db, null, 2);
+};
+
+export const importDbFromString = (jsonString: string): boolean => {
+    try {
+        const parsed: AppDB = JSON.parse(jsonString);
+        
+        if (
+            !parsed ||
+            !Array.isArray(parsed.users) ||
+            !Array.isArray(parsed.projects) ||
+            !Array.isArray(parsed.tasks) ||
+            !Array.isArray(parsed.chats) ||
+            typeof parsed.credentials !== 'object' ||
+            parsed.credentials === null
+        ) {
+            console.error("Import failed: Invalid data structure.");
+            return false;
+        }
+        
+        saveDb(parsed);
+        return true;
+    } catch (error) {
+        console.error("Import failed: Could not parse JSON.", error);
+        return false;
+    }
+};
+
 export const mockLogin = async (accountId: string, password: string): Promise<User | null> => {
     await delay(500);
     const db = loadDb();
     const user = db.users.find(u => u.accountId === accountId);
     if (user) {
-        const creds = db.credentials[user.name];
+        const creds = Object.values(db.credentials).find(c => c.userId === user.id);
         if (creds && creds.password === password) {
             return user;
         }
@@ -95,7 +116,7 @@ export const mockRegisterAdmin = async (username: string, password: string, admi
         throw new Error('errors.adminKeyIncorrect');
     }
 
-    if (db.credentials[username]) {
+    if (db.users.some(u => u.name.toLowerCase() === username.toLowerCase())) {
         throw new Error('errors.usernameExists');
     }
 
@@ -109,7 +130,7 @@ export const mockRegisterAdmin = async (username: string, password: string, admi
     };
 
     db.users.push(newUser);
-    db.credentials[username] = { password, userId: newUser.id };
+    db.credentials[newId] = { password, userId: newUser.id };
     
     saveDb(db);
     
@@ -247,7 +268,7 @@ export const createUser = async (userData: Omit<User, 'id' | 'accountId'>, passw
     await delay(400);
     const db = loadDb();
     
-    if (db.credentials[userData.name]) {
+    if (db.users.some(u => u.name.toLowerCase() === userData.name.toLowerCase())) {
         throw new Error('errors.usernameExists');
     }
 
@@ -261,8 +282,7 @@ export const createUser = async (userData: Omit<User, 'id' | 'accountId'>, passw
     };
     
     db.users.push(newUser);
-    const username = userData.name;
-    db.credentials[username] = { password, userId: newUser.id };
+    db.credentials[newId] = { password, userId: newUser.id };
     saveDb(db);
     return newUser;
 };
@@ -270,28 +290,21 @@ export const createUser = async (userData: Omit<User, 'id' | 'accountId'>, passw
 export const updateUser = async (userId: string, updates: Partial<User>): Promise<User> => {
     await delay(200);
     const db = loadDb();
-    let userToUpdate = db.users.find(u => u.id === userId);
+    const userToUpdate = db.users.find(u => u.id === userId);
     if (!userToUpdate) throw new Error('User not found');
 
-    if (updates.name && updates.name !== userToUpdate.name) {
-        const oldUsername = userToUpdate.name;
-        const newUsername = updates.name;
-        
-        if (db.credentials[newUsername]) {
-            throw new Error('errors.usernameExists');
-        }
-
-        if (db.credentials[oldUsername]) {
-            db.credentials[newUsername] = db.credentials[oldUsername];
-            delete db.credentials[oldUsername];
+    if (updates.name && updates.name.toLowerCase() !== userToUpdate.name.toLowerCase()) {
+        if (db.users.some(u => u.name.toLowerCase() === updates.name!.toLowerCase() && u.id !== userId)) {
+             throw new Error('errors.usernameExists');
         }
     }
 
-    userToUpdate = { ...userToUpdate, ...updates };
-    db.users = db.users.map(u => (u.id === userId ? userToUpdate! : u));
+    const updatedUser = { ...userToUpdate, ...updates };
+    db.users = db.users.map(u => (u.id === userId ? updatedUser : u));
     saveDb(db);
-    return userToUpdate;
+    return updatedUser;
 };
+
 
 export const deleteUser = async (userId: string): Promise<void> => {
     await delay(300);
@@ -307,29 +320,15 @@ export const deleteUser = async (userId: string): Promise<void> => {
         return task;
     });
 
-    const updatedChats = db.chats
-        .map(chat => {
-            const filteredMessages = chat.messages.filter(message => message.senderId !== userId);
-            const filteredParticipants = chat.participantIds.filter(id => id !== userId);
+    db.chats = db.chats
+        .map(chat => ({
+            ...chat,
+            messages: chat.messages.filter(message => message.senderId !== userId),
+            participantIds: chat.participantIds.filter(id => id !== userId),
+        }))
+        .filter(chat => chat.participantIds.length >= (chat.isGroup ? 1 : 2));
 
-            return {
-                ...chat,
-                messages: filteredMessages,
-                participantIds: filteredParticipants,
-            };
-        })
-        .filter(chat => {
-            return chat.participantIds.length >= (chat.isGroup ? 1 : 2);
-        });
-    db.chats = updatedChats;
-
-
-    const userToDelete = db.users.find(u => u.id === userId);
-    if (userToDelete) {
-        const username = userToDelete.name;
-        delete db.credentials[username];
-    }
-    
+    delete db.credentials[userId];
     db.users = db.users.filter(u => u.id !== userId);
     saveDb(db);
 };
@@ -360,9 +359,8 @@ export const createGroupChat = async (name: string, participantIds: string[], cr
 export const getUserPassword = async (userId: string): Promise<string | null> => {
     await delay(150);
     const db = loadDb();
-    const user = db.users.find(u => u.id === userId);
-    if (user && db.credentials[user.name]) {
-        return db.credentials[user.name].password;
+    if (db.credentials[userId]) {
+        return db.credentials[userId].password;
     }
     return null;
 }
@@ -370,9 +368,8 @@ export const getUserPassword = async (userId: string): Promise<string | null> =>
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
     await delay(300);
     const db = loadDb();
-    const user = db.users.find(u => u.id === userId);
-    if (user && db.credentials[user.name]) {
-        db.credentials[user.name].password = newPassword;
+    if (db.credentials[userId]) {
+        db.credentials[userId].password = newPassword;
         saveDb(db);
     } else {
         throw new Error("errors.userOrCredentialsNotFound");

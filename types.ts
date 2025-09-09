@@ -50,3 +50,11 @@ export interface Chat {
     messages: Message[];
     isGroup: boolean;
 }
+
+export interface AppDB {
+    users: User[];
+    projects: Project[];
+    tasks: Task[];
+    chats: Chat[];
+    credentials: Record<string, { password: string; userId: string; }>;
+}

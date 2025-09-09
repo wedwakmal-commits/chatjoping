@@ -25,6 +25,8 @@ export const translations = {
       registrationError: "حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.",
       loginTab: "تسجيل الدخول",
       registerTab: "تسجيل مدير جديد",
+      or: "أو",
+      importData: "استيراد بيانات من ملف",
     },
     // Dashboard Layout
     dashboard: {
@@ -121,6 +123,8 @@ export const translations = {
       deleteUserTitle: "حذف المستخدم",
       passwordUpdateSuccess: "تم تحديث كلمة المرور بنجاح!",
       passwordUpdateError: "فشل تحديث كلمة المرور.",
+      importData: "استيراد",
+      exportData: "تصدير",
     },
     // User Management Modal
     userManagementModal: {
@@ -150,6 +154,17 @@ export const translations = {
       deleteSelfWarning: "تحذير: أنت على وشك حذف حسابك الخاص. سيتم تسجيل خروجك فوراً. هل أنت متأكد؟",
       deleteOtherUser: "هل أنت متأكد من حذف المستخدم \"{userName}\"؟ سيتم إزالته من جميع المهام المسندة إليه.",
       confirm: "تأكيد الحذف",
+      importWarningTitle: "تأكيد الاستيراد",
+      importWarningMessage: "سيؤدي استيراد البيانات إلى الكتابة فوق جميع البيانات الحالية في هذا المتصفح. هل ترغب في المتابعة؟",
+      importConfirm: "المتابعة",
+    },
+    // Toasts
+    toasts: {
+      exportSuccess: "تم تصدير البيانات بنجاح!",
+      exportError: "فشل تصدير البيانات.",
+      importSuccess: "تم استيراد البيانات بنجاح! سيتم تحديث الصفحة.",
+      importErrorInvalidFile: "فشل الاستيراد. الملف غير صالح أو تالف.",
+      importErrorGeneric: "حدث خطأ غير متوقع أثناء الاستيراد.",
     },
     // Shared
     close: "إغلاق",
@@ -195,6 +210,8 @@ export const translations = {
       registrationError: "An error occurred during registration. Please try again.",
       loginTab: "Login",
       registerTab: "Register New Admin",
+      or: "Or",
+      importData: "Import data from a file",
     },
     // Dashboard Layout
     dashboard: {
@@ -291,6 +308,8 @@ export const translations = {
       deleteUserTitle: "Delete User",
       passwordUpdateSuccess: "Password updated successfully!",
       passwordUpdateError: "Failed to update password.",
+      importData: "Import",
+      exportData: "Export",
     },
     // User Management Modal
     userManagementModal: {
@@ -320,6 +339,17 @@ export const translations = {
       deleteSelfWarning: "Warning: You are about to delete your own account. You will be logged out immediately. Are you sure?",
       deleteOtherUser: "Are you sure you want to delete the user \"{userName}\"? They will be unassigned from all their tasks.",
       confirm: "Confirm Delete",
+      importWarningTitle: "Confirm Import",
+      importWarningMessage: "Importing data will overwrite all current data in this browser. Do you wish to continue?",
+      importConfirm: "Continue",
+    },
+     // Toasts
+    toasts: {
+      exportSuccess: "Data exported successfully!",
+      exportError: "Failed to export data.",
+      importSuccess: "Data imported successfully! The page will now reload.",
+      importErrorInvalidFile: "Import failed. The file is invalid or corrupt.",
+      importErrorGeneric: "An unexpected error occurred during import.",
     },
     // Shared
     close: "Close",
