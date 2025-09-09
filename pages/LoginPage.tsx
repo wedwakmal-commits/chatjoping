@@ -1,8 +1,8 @@
-import React, { useState, useRef, ChangeEvent } from 'react';
+import React, { useState, useRef, ChangeEvent, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
-import { importData } from '../services/api';
+import { importData, hasAdminUsers } from '../services/api';
 import { AppDB } from '../types';
 
 const LoginPage: React.FC = () => {
@@ -12,6 +12,22 @@ const LoginPage: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [adminsExist, setAdminsExist] = useState(true);
+
+    useEffect(() => {
+        const checkAdmins = async () => {
+            try {
+                const result = await hasAdminUsers();
+                setAdminsExist(result);
+            } catch (error) {
+                console.error("Failed to check for admin users:", error);
+                setAdminsExist(true);
+            }
+        };
+        if (activeTab === 'register') {
+            checkAdmins();
+        }
+    }, [activeTab]);
 
     const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -40,7 +56,7 @@ const LoginPage: React.FC = () => {
         const username = formData.get('newUsername') as string;
         const password = formData.get('password') as string;
         const confirmPassword = formData.get('confirmPassword') as string;
-        const adminKey = formData.get('adminKey') as string;
+        const adminKey = (formData.get('adminKey') as string) || '';
 
         if (password !== confirmPassword) {
             addToast({ type: 'error', message: t('loginPage.passwordsDoNotMatch') });
@@ -141,7 +157,7 @@ const LoginPage: React.FC = () => {
                 ) : (
                     <div className="p-8">
                         <h2 className="text-2xl font-bold text-center text-gray-800 dark:text-white">{t('loginPage.registerAdminTitle')}</h2>
-                        <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-2 mb-6">{t('loginPage.registerAdminSubtitle')}</p>
+                        <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-2 mb-6">{adminsExist ? t('loginPage.registerAdminSubtitle') : t('loginPage.registerFirstAdminSubtitle')}</p>
                          <form onSubmit={handleRegister}>
                             <div className="mb-4">
                                 <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" htmlFor="newUsername">{t('loginPage.newUsername')}</label>
@@ -155,10 +171,12 @@ const LoginPage: React.FC = () => {
                                 <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" htmlFor="confirmPassword">{t('loginPage.confirmPassword')}</label>
                                 <input className="w-full px-4 py-2 border rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" id="confirmPassword" name="confirmPassword" required />
                             </div>
-                            <div className="mb-6">
-                                <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" htmlFor="adminKey">{t('loginPage.adminKey')}</label>
-                                <input className="w-full px-4 py-2 border rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" id="adminKey" name="adminKey" required />
-                            </div>
+                            {adminsExist && (
+                                <div className="mb-6">
+                                    <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" htmlFor="adminKey">{t('loginPage.adminKey')}</label>
+                                    <input className="w-full px-4 py-2 border rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" type="password" id="adminKey" name="adminKey" required />
+                                </div>
+                            )}
                             <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400">
                                 {isSubmitting ? t('loginPage.registering') : t('loginPage.register')}
                             </button>

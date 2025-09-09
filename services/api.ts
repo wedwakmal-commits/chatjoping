@@ -54,9 +54,14 @@ export const mockLogout = () => {
 
 export const mockRegisterAdmin = async (username: string, password: string, adminKey: string): Promise<User | null> => {
     await delay(500);
-    if (adminKey !== ADMIN_REGISTRATION_KEY) {
+    const hasAdmins = db.users.some(u => u.role === Role.ADMIN);
+
+    // If there are existing admins, the key is required.
+    // If it's the first admin, the key is not required.
+    if (hasAdmins && adminKey !== ADMIN_REGISTRATION_KEY) {
         throw new Error('adminKeyIncorrect');
     }
+
     const accountId = username.toLowerCase().replace(/\s/g, '');
     if (db.credentials[accountId]) {
         throw new Error('usernameExists');
@@ -75,6 +80,11 @@ export const mockRegisterAdmin = async (username: string, password: string, admi
     saveDB();
 
     return newAdmin;
+};
+
+export const hasAdminUsers = async (): Promise<boolean> => {
+    await delay(50);
+    return db.users.some(u => u.role === Role.ADMIN);
 };
 
 export const getUsers = async (): Promise<User[]> => {
