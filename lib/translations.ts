@@ -81,6 +81,7 @@ export const translations = {
     // Chat Page
     chatPage: {
       title: "الدردشة",
+      syncChatsTitle: "مزامنة المحادثات",
       newGroup: "+ إنشاء مجموعة جديدة",
       searchAdmin: "البحث عن مدير",
       searchAdminPlaceholder: "أدخل رقم حساب المدير...",
@@ -154,8 +155,8 @@ export const translations = {
       deleteSelfWarning: "تحذير: أنت على وشك حذف حسابك الخاص. سيتم تسجيل خروجك فوراً. هل أنت متأكد؟",
       deleteOtherUser: "هل أنت متأكد من حذف المستخدم \"{userName}\"؟ سيتم إزالته من جميع المهام المسندة إليه.",
       confirm: "تأكيد الحذف",
-      importWarningTitle: "تأكيد الاستيراد",
-      importWarningMessage: "سيؤدي استيراد البيانات إلى الكتابة فوق جميع البيانات الحالية في هذا المتصفح. هل ترغب في المتابعة؟",
+      importWarningTitle: "تأكيد الاستيراد والمزامنة",
+      importWarningMessage: "سيقوم هذا الإجراء بدمج رسائل الدردشة من الملف مع الرسائل الحالية، ولكنه سيقوم بالكتابة فوق جميع البيانات الأخرى (المستخدمين، المشاريع، المهام). هل ترغب في المتابعة؟",
       importConfirm: "المتابعة",
     },
     // Toasts
@@ -163,6 +164,7 @@ export const translations = {
       exportSuccess: "تم تصدير البيانات بنجاح!",
       exportError: "فشل تصدير البيانات.",
       importSuccess: "تم استيراد البيانات بنجاح! سيتم تحديث الصفحة.",
+      importSuccessSync: "تمت المزامنة بنجاح!",
       importErrorInvalidFile: "فشل الاستيراد. الملف غير صالح أو تالف.",
       importErrorGeneric: "حدث خطأ غير متوقع أثناء الاستيراد.",
     },
@@ -266,6 +268,7 @@ export const translations = {
     // Chat Page
     chatPage: {
       title: "Chat",
+      syncChatsTitle: "Sync Chats",
       newGroup: "+ New Group",
       searchAdmin: "Search for Admin",
       searchAdminPlaceholder: "Enter admin's account ID...",
@@ -339,8 +342,8 @@ export const translations = {
       deleteSelfWarning: "Warning: You are about to delete your own account. You will be logged out immediately. Are you sure?",
       deleteOtherUser: "Are you sure you want to delete the user \"{userName}\"? They will be unassigned from all their tasks.",
       confirm: "Confirm Delete",
-      importWarningTitle: "Confirm Import",
-      importWarningMessage: "Importing data will overwrite all current data in this browser. Do you wish to continue?",
+      importWarningTitle: "Confirm Import & Sync",
+      importWarningMessage: "This action will merge chat messages from the file with your current messages, but it will overwrite all other data (users, projects, tasks). Do you wish to continue?",
       importConfirm: "Continue",
     },
      // Toasts
@@ -348,6 +351,7 @@ export const translations = {
       exportSuccess: "Data exported successfully!",
       exportError: "Failed to export data.",
       importSuccess: "Data imported successfully! The page will now reload.",
+      importSuccessSync: "Sync successful!",
       importErrorInvalidFile: "Import failed. The file is invalid or corrupt.",
       importErrorGeneric: "An unexpected error occurred during import.",
     },

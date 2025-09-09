@@ -72,28 +72,61 @@ export const exportDbAsString = (): string => {
 
 export const importDbFromString = (jsonString: string): boolean => {
     try {
-        const parsed: AppDB = JSON.parse(jsonString);
+        const importedDb: AppDB = JSON.parse(jsonString);
         
         if (
-            !parsed ||
-            !Array.isArray(parsed.users) ||
-            !Array.isArray(parsed.projects) ||
-            !Array.isArray(parsed.tasks) ||
-            !Array.isArray(parsed.chats) ||
-            typeof parsed.credentials !== 'object' ||
-            parsed.credentials === null
+            !importedDb ||
+            !Array.isArray(importedDb.users) ||
+            !Array.isArray(importedDb.projects) ||
+            !Array.isArray(importedDb.tasks) ||
+            !Array.isArray(importedDb.chats) ||
+            typeof importedDb.credentials !== 'object' ||
+            importedDb.credentials === null
         ) {
             console.error("Import failed: Invalid data structure.");
             return false;
         }
+
+        const localDb = loadDb();
         
-        saveDb(parsed);
+        // Merge chats non-destructively
+        const mergedChats = [...localDb.chats];
+        const localChatsMap = new Map(mergedChats.map(chat => [chat.id, chat]));
+
+        for (const importedChat of importedDb.chats) {
+            const localChat = localChatsMap.get(importedChat.id);
+
+            if (localChat) {
+                // Chat exists, merge messages
+                const localMessageIds = new Set(localChat.messages.map(m => m.id));
+                const newMessages = importedChat.messages.filter(m => !localMessageIds.has(m.id));
+                
+                if (newMessages.length > 0) {
+                    localChat.messages.push(...newMessages);
+                    localChat.messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+                }
+            } else {
+                // New chat, add it
+                mergedChats.push(importedChat);
+            }
+        }
+
+        const finalDb: AppDB = {
+            users: importedDb.users,
+            projects: importedDb.projects,
+            tasks: importedDb.tasks,
+            credentials: importedDb.credentials,
+            chats: mergedChats,
+        };
+        
+        saveDb(finalDb);
         return true;
     } catch (error) {
-        console.error("Import failed: Could not parse JSON.", error);
+        console.error("Import failed: Could not parse JSON or merge data.", error);
         return false;
     }
 };
+
 
 export const mockLogin = async (accountId: string, password: string): Promise<User | null> => {
     await delay(500);

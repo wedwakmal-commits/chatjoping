@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Chat, User, Role } from '../types';
-import { getChats, getUsers, sendMessage as apiSendMessage, findOrCreateChat, findAdminByAccountId, createGroupChat } from '../services/api';
+import { getChats, getUsers, sendMessage as apiSendMessage, findOrCreateChat, findAdminByAccountId, createGroupChat, importDbFromString } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import CreateGroupModal from '../components/CreateGroupModal';
 import { useLanguage } from '../context/LanguageContext';
+import { ImportIcon } from '../components/icons';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const ChatPage: React.FC = () => {
     const { user: currentUser } = useAuth();
@@ -24,24 +26,30 @@ const ChatPage: React.FC = () => {
     const [searchError, setSearchError] = useState('');
     const [isSearching, setIsSearching] = useState(false);
 
+    // Sync state
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
+
     const isAdmin = currentUser?.role === Role.ADMIN;
+    
+    const fetchData = useCallback(async () => {
+        if (!currentUser) return;
+        const [fetchedChats, fetchedUsers] = await Promise.all([getChats(currentUser.id), getUsers()]);
+        setChats(fetchedChats);
+        setUsers(fetchedUsers.filter(u => u.id !== currentUser.id));
+        if (fetchedChats.length > 0 && !activeChatId) {
+            setActiveChatId(fetchedChats[0].id);
+        }
+    }, [currentUser, activeChatId]);
+
 
     useEffect(() => {
         previousChatsRef.current = chats;
     }, [chats]);
 
     useEffect(() => {
-        const fetchData = async () => {
-            if (!currentUser) return;
-            const [fetchedChats, fetchedUsers] = await Promise.all([getChats(currentUser.id), getUsers()]);
-            setChats(fetchedChats);
-            setUsers(fetchedUsers.filter(u => u.id !== currentUser.id));
-            if (fetchedChats.length > 0 && !activeChatId) {
-                setActiveChatId(fetchedChats[0].id);
-            }
-        };
         fetchData();
-    }, [currentUser]);
+    }, [fetchData]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -160,6 +168,37 @@ const ChatPage: React.FC = () => {
         addToast({ type: 'success', message: t('chatPage.newGroupSuccess', { groupName: newGroup.name }) });
     };
 
+    const handleConfirmImport = () => {
+        setIsImportConfirmOpen(false);
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const text = e.target?.result as string;
+                if (importDbFromString(text)) {
+                    addToast({ type: 'success', message: t('toasts.importSuccessSync') });
+                    fetchData(); // Refetch data to update UI
+                } else {
+                    addToast({ type: 'error', message: t('toasts.importErrorInvalidFile') });
+                }
+            } catch (error) {
+                addToast({ type: 'error', message: t('toasts.importErrorGeneric') });
+            } finally {
+                if (event.target) {
+                    event.target.value = '';
+                }
+            }
+        };
+        reader.readAsText(file);
+    };
+
+
     if (!currentUser) return null;
 
     const usersToChatWith = users.filter(user => {
@@ -171,8 +210,15 @@ const ChatPage: React.FC = () => {
     return (
         <div className="flex h-full">
             <div className="w-1/3 xl:w-1/4 bg-white dark:bg-gray-800 border-e border-gray-200 dark:border-gray-700 flex flex-col">
-                <div className="p-4 border-b dark:border-gray-700">
+                 <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
                     <h2 className="text-xl font-bold">{t('chatPage.title')}</h2>
+                    <button
+                        onClick={() => setIsImportConfirmOpen(true)}
+                        className="p-2 text-gray-500 rounded-full hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                        title={t('chatPage.syncChatsTitle')}
+                    >
+                        <ImportIcon className="w-5 h-5" />
+                    </button>
                 </div>
                 
                 {isAdmin && (
@@ -297,6 +343,17 @@ const ChatPage: React.FC = () => {
                 )}
             </div>
             
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".json" />
+            <ConfirmationModal
+                isOpen={isImportConfirmOpen}
+                onClose={() => setIsImportConfirmOpen(false)}
+                onConfirm={handleConfirmImport}
+                title={t('confirmationModal.importWarningTitle')}
+                message={t('confirmationModal.importWarningMessage')}
+                confirmButtonClass="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
+                confirmButtonText={t('confirmationModal.importConfirm')}
+            />
+
             {isAdmin && (
                 <CreateGroupModal
                     isOpen={isGroupModalOpen}
