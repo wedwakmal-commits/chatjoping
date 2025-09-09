@@ -4,8 +4,9 @@ import { Role } from '../types';
 import TasksPage from './TasksPage';
 import ChatPage from './ChatPage';
 import AdminPage from './AdminPage';
-import { TaskIcon, ChatIcon, AdminIcon, LogoutIcon, LanguageIcon } from '../components/icons';
+import { TaskIcon, ChatIcon, AdminIcon, LogoutIcon, LanguageIcon, EditIcon } from '../components/icons';
 import { useLanguage } from '../context/LanguageContext';
+import ProfileModal from '../components/ProfileModal';
 
 type Page = 'tasks' | 'chat' | 'admin';
 
@@ -27,6 +28,7 @@ const DashboardLayout: React.FC = () => {
     const { user, logout } = useAuth();
     const { language, setLanguage, t } = useLanguage();
     const [activePage, setActivePage] = useState<Page>('tasks');
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
     
     const toggleLanguage = () => {
         setLanguage(language === 'ar' ? 'en' : 'ar');
@@ -80,10 +82,13 @@ const DashboardLayout: React.FC = () => {
                 <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
                    <div className="flex items-center mb-4">
                        <img src={user?.avatar} alt={user?.name} className="w-10 h-10 rounded-full"/>
-                       <div className="ms-3">
-                           <p className="font-semibold text-gray-800 dark:text-white">{user?.name}</p>
+                       <div className="ms-3 flex-1">
+                           <p className="font-semibold text-gray-800 dark:text-white truncate">{user?.name}</p>
                            <p className="text-sm text-gray-500 dark:text-gray-400">{t(`roles.${user?.role}`)}</p>
                        </div>
+                       <button onClick={() => setIsProfileModalOpen(true)} className="text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 p-2 rounded-full transition-colors flex-shrink-0" title={t('profileModal.title')}>
+                           <EditIcon className="w-5 h-5"/>
+                       </button>
                    </div>
                    <button
                         onClick={toggleLanguage}
@@ -106,6 +111,11 @@ const DashboardLayout: React.FC = () => {
             <main className="flex-1 overflow-y-auto">
                 {renderPage()}
             </main>
+
+            <ProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+            />
         </div>
     );
 };

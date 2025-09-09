@@ -149,6 +149,22 @@ export const translations = {
       newPasswordPlaceholder: "أدخل كلمة المرور الجديدة هنا",
       changePassword: "تغيير كلمة المرور",
     },
+     // Profile Modal
+    profileModal: {
+        title: "تعديل الملف الشخصي",
+        name: "الاسم",
+        avatar: "الصورة الرمزية",
+        changeAvatar: "تغيير الصورة",
+        currentPassword: "كلمة المرور الحالية",
+        newPassword: "كلمة المرور الجديدة",
+        confirmNewPassword: "تأكيد كلمة المرور الجديدة",
+        saveChanges: "حفظ التغييرات",
+        passwordUpdateSuccess: "تم تحديث كلمة المرور بنجاح.",
+        profileUpdateSuccess: "تم تحديث الملف الشخصي بنجاح.",
+        oldPasswordIncorrectError: "كلمة المرور الحالية غير صحيحة.",
+        passwordsDoNotMatch: "كلمتا المرور الجديدتان غير متطابقتين.",
+        leaveBlank: "اتركه فارغاً لعدم التغيير",
+    },
     // Confirmation Modal
     confirmationModal: {
       confirmDelete: "تأكيد الحذف",
@@ -186,6 +202,7 @@ export const translations = {
       adminKeyIncorrect: "مفتاح تسجيل المدراء غير صحيح.",
       usernameExists: "اسم المستخدم هذا موجود بالفعل.",
       userOrCredentialsNotFound: "المستخدم غير موجود أو بيانات الاعتماد غير موجودة.",
+      oldPasswordIncorrect: "كلمة المرور الحالية التي أدخلتها غير صحيحة.",
     },
   },
   en: {
@@ -336,6 +353,22 @@ export const translations = {
       newPasswordPlaceholder: "Enter the new password here",
       changePassword: "Change Password",
     },
+     // Profile Modal
+    profileModal: {
+        title: "Edit Profile",
+        name: "Name",
+        avatar: "Avatar",
+        changeAvatar: "Change Avatar",
+        currentPassword: "Current Password",
+        newPassword: "New Password",
+        confirmNewPassword: "Confirm New Password",
+        saveChanges: "Save Changes",
+        passwordUpdateSuccess: "Password updated successfully.",
+        profileUpdateSuccess: "Profile updated successfully.",
+        oldPasswordIncorrectError: "The current password is incorrect.",
+        passwordsDoNotMatch: "The new passwords do not match.",
+        leaveBlank: "Leave blank to keep unchanged",
+    },
     // Confirmation Modal
     confirmationModal: {
       confirmDelete: "Confirm Deletion",
@@ -373,6 +406,7 @@ export const translations = {
       adminKeyIncorrect: "Incorrect admin registration key.",
       usernameExists: "This username already exists.",
       userOrCredentialsNotFound: "User not found or credentials don't exist.",
+      oldPasswordIncorrect: "The current password you entered is incorrect.",
     },
   },
 };

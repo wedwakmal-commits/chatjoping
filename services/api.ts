@@ -152,6 +152,21 @@ export const updatePassword = async (userId: string, newPassword: string): Promi
     }
 };
 
+export const updateCurrentUserPassword = async (userId: string, oldPassword: string, newPassword: string): Promise<void> => {
+    await delay(500);
+    const user = db.users.find(u => u.id === userId);
+    if (user && db.credentials[user.accountId]) {
+        if (db.credentials[user.accountId].password === oldPassword) {
+            db.credentials[user.accountId].password = newPassword;
+            saveDB();
+        } else {
+            throw new Error('oldPasswordIncorrect');
+        }
+    } else {
+        throw new Error('userOrCredentialsNotFound');
+    }
+};
+
 
 export const getTasks = async (): Promise<Task[]> => {
     await delay(300);

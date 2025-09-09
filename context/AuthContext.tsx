@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import { User } from '../types';
-import { mockLogin, mockLogout, mockRegisterAdmin } from '../services/api';
+import { mockLogin, mockLogout, mockRegisterAdmin, updateCurrentUserPassword } from '../services/api';
 
 interface AuthContextType {
     user: User | null;
@@ -8,6 +8,7 @@ interface AuthContextType {
     logout: () => void;
     updateCurrentUser: (updatedUser: User) => void;
     registerAdmin: (username: string, password: string, adminKey: string) => Promise<User | null>;
+    updatePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,9 +52,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return newAdmin;
     }, []);
 
+    const updatePassword = useCallback(async (oldPassword: string, newPassword: string) => {
+        if (!user) {
+            throw new Error("No user is logged in.");
+        }
+        await updateCurrentUserPassword(user.id, oldPassword, newPassword);
+    }, [user]);
+
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, updateCurrentUser, registerAdmin }}>
+        <AuthContext.Provider value={{ user, login, logout, updateCurrentUser, registerAdmin, updatePassword }}>
             {children}
         </AuthContext.Provider>
     );
