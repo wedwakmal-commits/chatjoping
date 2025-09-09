@@ -1,367 +1,189 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Chat, User, Message } from '../types';
+import { getChats, getUsers, createChat, sendMessage, searchAdminByAccountId } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Chat, User, Role } from '../types';
-import { getChats, getUsers, sendMessage as apiSendMessage, findOrCreateChat, findAdminByAccountId, createGroupChat, importDbFromString } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import CreateGroupModal from '../components/CreateGroupModal';
-import { useLanguage } from '../context/LanguageContext';
-import { ImportIcon } from '../components/icons';
-import ConfirmationModal from '../components/ConfirmationModal';
 
 const ChatPage: React.FC = () => {
-    const { user: currentUser } = useAuth();
-    const { addToast } = useToast();
-    const { t, language } = useLanguage();
     const [chats, setChats] = useState<Chat[]>([]);
     const [users, setUsers] = useState<User[]>([]);
-    const [activeChatId, setActiveChatId] = useState<string | null>(null);
-    const [newMessage, setNewMessage] = useState('');
-    const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const previousChatsRef = useRef<Chat[]>([]);
-    
-    // Admin specific states
+    const [activeChat, setActiveChat] = useState<Chat | null>(null);
+    const [message, setMessage] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-    const [adminSearchId, setAdminSearchId] = useState('');
-    const [foundAdmin, setFoundAdmin] = useState<User | null>(null);
-    const [searchError, setSearchError] = useState('');
     const [isSearching, setIsSearching] = useState(false);
+    const [searchAccountId, setSearchAccountId] = useState('');
+    const { user: currentUser } = useAuth();
+    const { t } = useLanguage();
+    const { addToast } = useToast();
+    const messageEndRef = useRef<HTMLDivElement>(null);
 
-    // Sync state
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
-
-    const isAdmin = currentUser?.role === Role.ADMIN;
-    
     const fetchData = useCallback(async () => {
-        if (!currentUser) return;
-        const [fetchedChats, fetchedUsers] = await Promise.all([getChats(currentUser.id), getUsers()]);
-        setChats(fetchedChats);
-        setUsers(fetchedUsers.filter(u => u.id !== currentUser.id));
-        if (fetchedChats.length > 0 && !activeChatId) {
-            setActiveChatId(fetchedChats[0].id);
+        setIsLoading(true);
+        try {
+            const [fetchedChats, fetchedUsers] = await Promise.all([getChats(), getUsers()]);
+            setChats(fetchedChats);
+            setUsers(fetchedUsers);
+        } catch (error) {
+            console.error("Failed to fetch chat data:", error);
+        } finally {
+            setIsLoading(false);
         }
-    }, [currentUser, activeChatId]);
-
-
-    useEffect(() => {
-        previousChatsRef.current = chats;
-    }, [chats]);
+    }, []);
 
     useEffect(() => {
         fetchData();
+        const interval = setInterval(fetchData, 5000); // Poll for new messages
+        return () => clearInterval(interval);
     }, [fetchData]);
 
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [activeChatId, chats]);
+        messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [activeChat?.messages]);
+    
+    const getUserById = (id: string) => users.find(u => u.id === id);
 
-    useEffect(() => {
-        if (!currentUser) return;
-
-        const intervalId = setInterval(async () => {
-            const newChats = await getChats(currentUser.id);
-            const allUsers = await getUsers();
-            let hasNewData = false;
-            
-            if (newChats.length !== previousChatsRef.current.length) {
-                hasNewData = true;
-            } else {
-                 newChats.forEach(newChat => {
-                    const oldChat = previousChatsRef.current.find(c => c.id === newChat.id);
-                    if (oldChat && newChat.messages.length > oldChat.messages.length) {
-                        const lastMessage = newChat.messages[newChat.messages.length - 1];
-                        if (lastMessage.senderId !== currentUser.id) {
-                            if (newChat.id !== activeChatId) {
-                                const sender = allUsers.find(u => u.id === lastMessage.senderId);
-                                addToast({
-                                    type: 'info',
-                                    message: t('chatPage.newMessageFrom', { senderName: sender ? sender.name : t('chatPage.unknownUser'), chatName: newChat.name }),
-                                });
-                            }
-                        }
-                        hasNewData = true;
-                    }
-                });
-            }
-           
-            if(hasNewData) {
-                 setChats(newChats);
-            }
-
-        }, 5000); 
-
-        return () => clearInterval(intervalId);
-    }, [currentUser, activeChatId, addToast, t]);
-
-    const getChatPartner = (chat: Chat): User | undefined => {
-        if (chat.isGroup || !currentUser) return undefined;
-        const partnerId = chat.participantIds.find(id => id !== currentUser.id);
-        const allUsersList = users.concat(currentUser ? [currentUser] : []);
-        return allUsersList.find(u => u.id === partnerId);
+    const getChatName = (chat: Chat) => {
+        if (chat.isGroup) {
+            return chat.name;
+        }
+        const otherUserId = chat.participantIds.find(id => id !== currentUser?.id);
+        return otherUserId ? getUserById(otherUserId)?.name : t('chatPage.unknownUser');
     };
 
-    const activeChat = chats.find(c => c.id === activeChatId);
-    
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim() || !activeChatId || !currentUser) return;
-        
-        const sentMessage = await apiSendMessage(activeChatId, currentUser.id, newMessage);
+        if (!message.trim() || !activeChat || !currentUser) return;
 
-        setChats(prevChats =>
-            prevChats.map(chat =>
-                chat.id === activeChatId
-                    ? { ...chat, messages: [...chat.messages, sentMessage] }
-                    : chat
-            )
+        const sentMessage = await sendMessage(activeChat.id, { text: message.trim(), senderId: currentUser.id });
+        
+        // Update local state immediately for better UX
+        const updatedChats = chats.map(c => 
+            c.id === activeChat.id 
+            ? { ...c, messages: [...c.messages, sentMessage] } 
+            : c
         );
-        setNewMessage('');
-    };
-    
-    const handleStartNewChat = async (partnerId: string) => {
-        if (!currentUser) return;
-        const chat = await findOrCreateChat(currentUser.id, partnerId);
+        setChats(updatedChats);
+        setActiveChat(updatedChats.find(c => c.id === activeChat.id) || null);
         
-        if (!chats.some(c => c.id === chat.id)) {
-            setChats(prevChats => [chat, ...prevChats]);
-        }
-        
-        setActiveChatId(chat.id);
-    };
-
-    const handleAdminSearch = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSearchError('');
-        setFoundAdmin(null);
-        if (!adminSearchId.trim()) return;
-        setIsSearching(true);
-        try {
-            const admin = await findAdminByAccountId(adminSearchId.trim());
-            if (admin && admin.id !== currentUser?.id) {
-                setFoundAdmin(admin);
-            } else if (admin?.id === currentUser?.id) {
-                setSearchError(t('chatPage.searchErrorSelf'));
-            } else {
-                setSearchError(t('chatPage.searchErrorNotFound'));
-            }
-        } catch {
-            setSearchError(t('chatPage.searchErrorGeneric'));
-        } finally {
-            setIsSearching(false);
-        }
-    };
-
-    const handleStartChatWithFoundAdmin = async () => {
-        if (!foundAdmin) return;
-        await handleStartNewChat(foundAdmin.id);
-        setFoundAdmin(null);
-        setAdminSearchId('');
-        setSearchError('');
+        setMessage('');
     };
 
     const handleCreateGroup = async (groupData: { name: string; participantIds: string[] }) => {
         if (!currentUser) return;
-        const newGroup = await createGroupChat(groupData.name, groupData.participantIds, currentUser.id);
+        const newGroup = await createChat({ ...groupData, participantIds: [...groupData.participantIds, currentUser.id], isGroup: true });
         setChats(prev => [newGroup, ...prev]);
-        setActiveChatId(newGroup.id);
         setIsGroupModalOpen(false);
+        setActiveChat(newGroup);
         addToast({ type: 'success', message: t('chatPage.newGroupSuccess', { groupName: newGroup.name }) });
     };
 
-    const handleConfirmImport = () => {
-        setIsImportConfirmOpen(false);
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const text = e.target?.result as string;
-                if (importDbFromString(text)) {
-                    addToast({ type: 'success', message: t('toasts.importSuccessSync') });
-                    fetchData(); // Refetch data to update UI
+    const handleSearchAndStartChat = async () => {
+        if (!searchAccountId.trim() || !currentUser) return;
+        if(users.find(u=>u.id === currentUser.id)?.accountId === searchAccountId) {
+            addToast({ type: 'error', message: t('chatPage.searchErrorSelf') });
+            return;
+        }
+        setIsSearching(true);
+        try {
+            const admin = await searchAdminByAccountId(searchAccountId);
+            if (admin) {
+                // Check if a chat already exists
+                const existingChat = chats.find(c => !c.isGroup && c.participantIds.includes(admin.id) && c.participantIds.includes(currentUser.id));
+                if (existingChat) {
+                    setActiveChat(existingChat);
                 } else {
-                    addToast({ type: 'error', message: t('toasts.importErrorInvalidFile') });
+                    const newChat = await createChat({ name: 'DM', participantIds: [currentUser.id, admin.id], isGroup: false });
+                    setChats(prev => [newChat, ...prev]);
+                    setActiveChat(newChat);
                 }
-            } catch (error) {
-                addToast({ type: 'error', message: t('toasts.importErrorGeneric') });
-            } finally {
-                if (event.target) {
-                    event.target.value = '';
-                }
+                setSearchAccountId('');
+            } else {
+                addToast({ type: 'error', message: t('chatPage.searchErrorNotFound') });
             }
-        };
-        reader.readAsText(file);
+        } catch (error) {
+            addToast({ type: 'error', message: t('chatPage.searchErrorGeneric') });
+        } finally {
+            setIsSearching(false);
+        }
     };
-
-
-    if (!currentUser) return null;
-
-    const usersToChatWith = users.filter(user => {
-        return !chats.some(chat => 
-            !chat.isGroup && chat.participantIds.includes(user.id)
-        );
-    });
+    
+    const userChats = chats.filter(c => c.participantIds.includes(currentUser?.id || ''));
 
     return (
-        <div className="flex h-full">
-            <div className="w-1/3 xl:w-1/4 bg-white dark:bg-gray-800 border-e border-gray-200 dark:border-gray-700 flex flex-col">
-                 <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-                    <h2 className="text-xl font-bold">{t('chatPage.title')}</h2>
-                    <button
-                        onClick={() => setIsImportConfirmOpen(true)}
-                        className="p-2 text-gray-500 rounded-full hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-                        title={t('chatPage.syncChatsTitle')}
-                    >
-                        <ImportIcon className="w-5 h-5" />
+        <div className="flex h-full bg-gray-100 dark:bg-gray-900">
+            <aside className="w-80 flex-shrink-0 bg-white dark:bg-gray-800 border-e border-gray-200 dark:border-gray-700 flex flex-col">
+                <div className="h-16 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4">
+                    <h2 className="text-lg font-bold text-gray-800 dark:text-white">{t('chatPage.title')}</h2>
+                    <button onClick={() => setIsGroupModalOpen(true)} className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900">
+                        {t('chatPage.newGroup')}
                     </button>
                 </div>
-                
-                {isAdmin && (
-                    <div className="p-4 border-b dark:border-gray-700 space-y-4">
-                        <button onClick={() => setIsGroupModalOpen(true)} className="w-full px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow">
-                            {t('chatPage.newGroup')}
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <p className="text-sm font-semibold mb-2">{t('chatPage.searchAdmin')}</p>
+                    <div className="flex space-x-2">
+                        <input 
+                            type="text" 
+                            placeholder={t('chatPage.searchAdminPlaceholder')}
+                            value={searchAccountId}
+                            onChange={(e) => setSearchAccountId(e.target.value)}
+                            className="flex-grow px-3 py-1.5 text-sm border rounded-md dark:bg-gray-600 dark:border-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <button onClick={handleSearchAndStartChat} disabled={isSearching} className="px-3 py-1.5 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400">
+                            {isSearching ? t('chatPage.searching') : t('chatPage.search')}
                         </button>
-                        <div>
-                             <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 tracking-wider mb-2">{t('chatPage.searchAdmin')}</h3>
-                             <form onSubmit={handleAdminSearch} className="flex space-x-2">
-                                 <input 
-                                     type="text"
-                                     placeholder={t('chatPage.searchAdminPlaceholder')}
-                                     value={adminSearchId}
-                                     onChange={e => setAdminSearchId(e.target.value)}
-                                     className="flex-1 min-w-0 px-3 py-2 text-sm border rounded-md dark:bg-gray-600 dark:border-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                 />
-                                 <button type="submit" disabled={isSearching} className="px-3 py-1 text-xs rounded-md text-white bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400">
-                                     {isSearching ? t('chatPage.searching') : t('chatPage.search')}
-                                 </button>
-                             </form>
-                             {searchError && <p className="text-xs text-red-500 mt-2">{searchError}</p>}
-                             {foundAdmin && (
-                                 <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-md flex items-center justify-between">
-                                     <div className="flex items-center">
-                                        <img src={foundAdmin.avatar} alt={foundAdmin.name} className="w-8 h-8 rounded-full" />
-                                        <p className="ms-2 text-sm font-semibold">{foundAdmin.name}</p>
-                                     </div>
-                                     <button onClick={handleStartChatWithFoundAdmin} className="px-2 py-1 text-xs rounded-md text-white bg-green-600 hover:bg-green-700">{t('chatPage.startChat')}</button>
-                                 </div>
-                             )}
-                        </div>
                     </div>
-                )}
-                
-                <div className="flex-1 overflow-y-auto">
-                     <div className="p-3">
-                         <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 tracking-wider">{t('chatPage.currentConversations')}</h3>
-                    </div>
-                    {chats.map(chat => {
-                        const partner = getChatPartner(chat);
-                        const chatName = chat.isGroup ? chat.name : partner?.name || t('chatPage.unknownUser');
-                        const avatar = chat.isGroup ? `https://i.pravatar.cc/150?u=${chat.id}` : partner?.avatar;
-                        const lastMessage = chat.messages[chat.messages.length - 1];
-
-                        return (
-                            <div
-                                key={chat.id}
-                                onClick={() => setActiveChatId(chat.id)}
-                                className={`flex items-center p-3 cursor-pointer transition-colors ${
-                                    activeChatId === chat.id ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                            >
-                                <img src={avatar} alt={chatName} className="w-12 h-12 rounded-full object-cover" />
-                                <div className="ms-3 flex-1 overflow-hidden">
-                                    <p className="font-semibold text-gray-800 dark:text-white truncate">{chatName}</p>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{lastMessage?.text || t('chatPage.startConversationPrompt')}</p>
-                                </div>
-                            </div>
-                        );
-                    })}
-
-                    {usersToChatWith.length > 0 && (
-                        <>
-                            <div className="p-3 mt-4 border-t dark:border-gray-700">
-                                <h3 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 tracking-wider">{t('chatPage.startNewConversation')}</h3>
-                            </div>
-                            {usersToChatWith.map(user => (
-                                <div
-                                    key={user.id}
-                                    onClick={() => handleStartNewChat(user.id)}
-                                    className="flex items-center p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                                >
-                                    <img src={user.avatar} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
-                                    <div className="ms-3 flex-1">
-                                        <p className="font-semibold text-gray-800 dark:text-white">{user.name}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </>
-                    )}
                 </div>
-            </div>
-
-            <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
+                <div className="flex-1 overflow-y-auto">
+                    {userChats.map(chat => (
+                        <button key={chat.id} onClick={() => setActiveChat(chat)} className={`w-full text-start px-4 py-3 flex items-center space-x-3 transition-colors ${activeChat?.id === chat.id ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                            {/* Avatar placeholder */}
+                            <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
+                            <div>
+                                <p className="font-semibold text-sm text-gray-800 dark:text-white">{getChatName(chat)}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{chat.messages[chat.messages.length - 1]?.text}</p>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </aside>
+            <main className="flex-1 flex flex-col">
                 {activeChat ? (
                     <>
-                        <div className="flex items-center p-4 border-b bg-white dark:bg-gray-800 dark:border-gray-700 shadow-sm">
-                            <img src={activeChat.isGroup ? `https://i.pravatar.cc/150?u=${activeChat.id}` : getChatPartner(activeChat)?.avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover" />
-                            <h3 className="ms-3 font-semibold text-lg">{activeChat.isGroup ? activeChat.name : getChatPartner(activeChat)?.name}</h3>
-                        </div>
-                        <div className="flex-1 p-4 overflow-y-auto">
-                            {activeChat.messages.map(msg => (
-                                <div key={msg.id} className={`flex mb-4 ${msg.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-xl ${msg.senderId === currentUser.id ? 'bg-indigo-500 text-white' : 'bg-white dark:bg-gray-700'}`}>
-                                        <p>{msg.text}</p>
-                                        <p className={`text-xs opacity-75 mt-1 ${msg.senderId === currentUser.id ? 'text-start' : 'text-end'}`}>{new Date(msg.timestamp).toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                        <header className="h-16 flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center px-6">
+                            <h3 className="font-bold text-gray-800 dark:text-white">{getChatName(activeChat)}</h3>
+                        </header>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            {activeChat.messages.map(msg => {
+                                const sender = getUserById(msg.senderId);
+                                const isMe = msg.senderId === currentUser?.id;
+                                return (
+                                    <div key={msg.id} className={`flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                        {!isMe && sender && <img src={sender.avatar} alt={sender.name} className="w-8 h-8 rounded-full" />}
+                                        <div className={`max-w-md p-3 rounded-xl ${isMe ? 'bg-indigo-500 text-white rounded-br-none' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none'}`}>
+                                            {!isMe && <p className="text-xs font-bold mb-1 text-indigo-600 dark:text-indigo-400">{sender?.name}</p>}
+                                            <p className="text-sm">{msg.text}</p>
+                                            <p className="text-xs opacity-70 mt-1 text-end">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
+                                );
+                            })}
+                             <div ref={messageEndRef} />
                         </div>
-                        <div className="p-4 bg-white dark:bg-gray-800 border-t dark:border-gray-700">
-                            <form onSubmit={handleSendMessage} className="flex items-center">
-                                <input
-                                    type="text"
-                                    value={newMessage}
-                                    onChange={e => setNewMessage(e.target.value)}
-                                    placeholder={t('chatPage.typeMessagePlaceholder')}
-                                    className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                                <button type="submit" className="ms-3 px-4 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors">
-                                    {t('chatPage.send')}
-                                </button>
+                        <footer className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                            <form onSubmit={handleSendMessage} className="flex items-center space-x-3">
+                                <input type="text" value={message} onChange={e => setMessage(e.target.value)} placeholder={t('chatPage.typeMessagePlaceholder')} className="flex-1 px-4 py-2 border rounded-full bg-gray-100 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <button type="submit" className="px-5 py-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700">{t('chatPage.send')}</button>
                             </form>
-                        </div>
+                        </footer>
                     </>
                 ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-500">
-                        <p>{t('chatPage.selectConversationPrompt')}</p>
-                    </div>
+                    <div className="flex-1 flex items-center justify-center text-gray-500">{t('chatPage.selectConversationPrompt')}</div>
                 )}
-            </div>
-            
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".json" />
-            <ConfirmationModal
-                isOpen={isImportConfirmOpen}
-                onClose={() => setIsImportConfirmOpen(false)}
-                onConfirm={handleConfirmImport}
-                title={t('confirmationModal.importWarningTitle')}
-                message={t('confirmationModal.importWarningMessage')}
-                confirmButtonClass="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
-                confirmButtonText={t('confirmationModal.importConfirm')}
-            />
-
-            {isAdmin && (
-                <CreateGroupModal
-                    isOpen={isGroupModalOpen}
-                    onClose={() => setIsGroupModalOpen(false)}
-                    onSave={handleCreateGroup}
-                    users={users}
-                />
-            )}
+            </main>
+            <CreateGroupModal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} onSave={handleCreateGroup} users={users.filter(u => u.id !== currentUser?.id)} />
         </div>
     );
 };

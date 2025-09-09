@@ -1,33 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { User, Role } from '../types';
-import { getUsers, createUser, updateUser, deleteUser, updateUserPassword, exportDbAsString, importDbFromString } from '../services/api';
-import UserManagementModal from '../components/UserManagementModal';
-import ConfirmationModal from '../components/ConfirmationModal';
-import ManageCredentialsModal from '../components/ManageCredentialsModal';
-import { EditIcon, DeleteIcon, KeyIcon, ExportIcon, ImportIcon } from '../components/icons';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { User, Role, AppDB } from '../types';
+import { getUsers, createUser, updateUser, deleteUser, updatePassword, exportData, importData } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
+import UserManagementModal from '../components/UserManagementModal';
+import ManageCredentialsModal from '../components/ManageCredentialsModal';
+import ConfirmationModal from '../components/ConfirmationModal';
+import { EditIcon, DeleteIcon, KeyIcon, ImportIcon, ExportIcon } from '../components/icons';
 
 const AdminPage: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState<User | null>(null);
-    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-    const [userToDelete, setUserToDelete] = useState<User | null>(null);
-    const { user: currentUser, logout, updateCurrentUser } = useAuth();
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const { user: currentUser, logout } = useAuth();
     const { addToast } = useToast();
     const { t } = useLanguage();
+    const importFileRef = useRef<HTMLInputElement>(null);
 
-    const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
-    const [userForCredentials, setUserForCredentials] = useState<User | null>(null);
-
-    // Import/Export state
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
-
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         try {
             const fetchedUsers = await getUsers();
@@ -37,164 +32,130 @@ const AdminPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    };
-    
-    useEffect(() => {
-        fetchUsers();
     }, []);
 
+    useEffect(() => {
+        fetchUsers();
+    }, [fetchUsers]);
+
     const handleOpenUserModal = (user: User | null = null) => {
-        setEditingUser(user);
+        setSelectedUser(user);
         setIsUserModalOpen(true);
     };
+    
+    const handleOpenPasswordModal = (user: User) => {
+        setSelectedUser(user);
+        setIsPasswordModalOpen(true);
+    };
 
-    const handleCloseUserModal = () => {
-        setEditingUser(null);
-        setIsUserModalOpen(false);
+    const handleOpenDeleteModal = (user: User) => {
+        setSelectedUser(user);
+        setIsDeleteModalOpen(true);
     };
 
     const handleSaveUser = async (userData: { id?: string; name: string; role: Role; password?: string; avatar: string; }) => {
         try {
-            if (userData.id) {
-                const updatedUser = await updateUser(userData.id, { name: userData.name, role: userData.role, avatar: userData.avatar });
-                if (currentUser && updatedUser.id === currentUser.id) {
-                    updateCurrentUser(updatedUser);
-                }
-            } else {
-                if(!userData.password) return;
-                await createUser({ name: userData.name, role: userData.role, avatar: userData.avatar }, userData.password);
+            if (userData.id) { // Editing existing user
+                await updateUser(userData.id, { name: userData.name, role: userData.role, avatar: userData.avatar });
+            } else { // Creating new user
+                await createUser(userData);
             }
-        } catch (err: any) {
-            addToast({ type: 'error', message: t(err.message) });
-        }
-        await fetchUsers();
-        handleCloseUserModal();
-    };
-
-    const handlePromptDelete = (user: User) => {
-        setUserToDelete(user);
-        setIsConfirmModalOpen(true);
-    };
-
-    const handleConfirmDelete = async () => {
-        if (!userToDelete) return;
-
-        const isDeletingSelf = userToDelete.id === currentUser?.id;
-        
-        await deleteUser(userToDelete.id);
-
-        setIsConfirmModalOpen(false);
-        setUserToDelete(null);
-
-        if (isDeletingSelf) {
-            logout();
-        } else {
-            await fetchUsers();
+            addToast({ type: 'success', message: 'User saved successfully!' });
+            fetchUsers();
+            setIsUserModalOpen(false);
+        } catch (error) {
+            addToast({ type: 'error', message: 'Failed to save user.' });
         }
     };
     
-    const handleOpenCredentialsModal = (user: User) => {
-        setUserForCredentials(user);
-        setIsCredentialsModalOpen(true);
-    };
-
-    const handleCloseCredentialsModal = () => {
-        setUserForCredentials(null);
-        setIsCredentialsModalOpen(false);
-    };
-
     const handleUpdatePassword = async (userId: string, newPassword: string) => {
         try {
-            await updateUserPassword(userId, newPassword);
+            await updatePassword(userId, newPassword);
             addToast({ type: 'success', message: t('adminPage.passwordUpdateSuccess') });
-            handleCloseCredentialsModal();
+            setIsPasswordModalOpen(false);
         } catch (error) {
             addToast({ type: 'error', message: t('adminPage.passwordUpdateError') });
         }
     };
 
-    const handleExport = () => {
+    const handleDeleteUser = async () => {
+        if (!selectedUser) return;
         try {
-            const dataStr = exportDbAsString();
-            const blob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `employee-app-backup-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            addToast({ type: 'success', message: t('toasts.exportSuccess') });
+            await deleteUser(selectedUser.id);
+            addToast({ type: 'success', message: `User ${selectedUser.name} deleted.` });
+            if (selectedUser.id === currentUser?.id) {
+                logout();
+            } else {
+                fetchUsers();
+            }
+        } catch (error) {
+            addToast({ type: 'error', message: 'Failed to delete user.' });
+        }
+        setIsDeleteModalOpen(false);
+    };
+    
+    const handleExport = async () => {
+        try {
+            const data = await exportData();
+            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
+            const link = document.createElement("a");
+            link.href = jsonString;
+            link.download = `team-dashboard-backup-${new Date().toISOString()}.json`;
+            link.click();
+            addToast({type: 'success', message: t('toasts.exportSuccess')});
         } catch (e) {
-            addToast({ type: 'error', message: t('toasts.exportError') });
-            console.error("Export failed", e);
+            addToast({type: 'error', message: t('toasts.exportError')});
         }
     };
 
-    const handleConfirmImport = () => {
-        setIsImportConfirmOpen(false);
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
-                const text = e.target?.result as string;
-                if (importDbFromString(text)) {
-                    addToast({ type: 'success', message: t('toasts.importSuccess') });
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    addToast({ type: 'error', message: t('toasts.importErrorInvalidFile') });
+                const text = e.target?.result;
+                if (typeof text !== 'string') throw new Error("File content is not text");
+                const data = JSON.parse(text) as AppDB;
+                if (!data.users || !data.credentials || !data.tasks) {
+                     throw new Error("Invalid file structure");
                 }
-            } catch (error) {
-                addToast({ type: 'error', message: t('toasts.importErrorGeneric') });
+                await importData(data, true); // true for sync
+                addToast({type: 'success', message: t('toasts.importSuccessSync')});
+                await fetchUsers(); // Re-fetch users
+            } catch (err) {
+                console.error("Import failed:", err);
+                addToast({type: 'error', message: t('toasts.importErrorInvalidFile')});
             } finally {
-                if (event.target) {
-                    event.target.value = '';
-                }
+                if(importFileRef.current) importFileRef.current.value = "";
+                setIsImportModalOpen(false);
             }
         };
         reader.readAsText(file);
-    };
+    }
 
     return (
-        <div className="p-6 md:p-8 h-full">
-            <header className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">{t('adminPage.userManagement')}</h1>
-                <div className="flex items-center gap-2">
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".json" />
-                     <button
-                        onClick={() => setIsImportConfirmOpen(true)}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors shadow flex items-center gap-2"
-                    >
-                        <ImportIcon className="w-5 h-5"/>
-                        {t('adminPage.importData')}
+        <div className="p-6 md:p-8">
+            <header className="flex flex-col md:flex-row justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-4 md:mb-0">{t('adminPage.userManagement')}</h1>
+                <div className="flex items-center space-x-2">
+                    <input type="file" ref={importFileRef} onChange={handleImport} className="hidden" accept=".json" />
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors shadow-md">
+                        <ImportIcon className="w-5 h-5 me-2"/> {t('adminPage.importData')}
                     </button>
-                    <button
-                        onClick={handleExport}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors shadow flex items-center gap-2"
-                    >
-                        <ExportIcon className="w-5 h-5"/>
-                        {t('adminPage.exportData')}
+                    <button onClick={handleExport} className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors shadow-md">
+                        <ExportIcon className="w-5 h-5 me-2"/>{t('adminPage.exportData')}
                     </button>
-                    <button
-                        onClick={() => handleOpenUserModal()}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow"
-                    >
+                    <button onClick={() => handleOpenUserModal()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md">
                         {t('adminPage.addUser')}
                     </button>
                 </div>
             </header>
-            
-            {isLoading ? (
-                <div className="text-center py-10">{t('adminPage.loadingUsers')}</div>
-            ) : (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+                {isLoading ? (
+                    <p className="p-6 text-center">{t('adminPage.loadingUsers')}</p>
+                ) : (
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-700">
@@ -202,47 +163,29 @@ const AdminPage: React.FC = () => {
                                     <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{t('adminPage.user')}</th>
                                     <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{t('adminPage.accountId')}</th>
                                     <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{t('adminPage.role')}</th>
-                                    <th scope="col" className="relative px-6 py-3">
-                                        <span className="sr-only">{t('adminPage.actions')}</span>
-                                    </th>
+                                    <th scope="col" className="px-6 py-3 text-end text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{t('adminPage.actions')}</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                {users.map((user) => (
+                                {users.map(user => (
                                     <tr key={user.id}>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className="flex-shrink-0 h-10 w-10">
-                                                    <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt={user.name} />
+                                                    <img className="h-10 w-10 rounded-full" src={user.avatar} alt="" />
                                                 </div>
                                                 <div className="ms-4">
                                                     <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                            {user.accountId}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === Role.ADMIN ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                                                {t(`roles.${user.role}`)}
-                                            </span>
-                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{user.accountId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{t(`roles.${user.role}`)}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-end text-sm font-medium">
-                                            <div className="flex items-center justify-end space-x-4">
-                                                <button onClick={() => handleOpenCredentialsModal(user)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200" title={t('adminPage.managePasswordTitle')}>
-                                                    <KeyIcon className="w-5 h-5"/>
-                                                </button>
-                                                <button onClick={() => handleOpenUserModal(user)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200" title={t('adminPage.editUserTitle')}>
-                                                    <EditIcon className="w-5 h-5"/>
-                                                </button>
-                                                <button 
-                                                    onClick={() => handlePromptDelete(user)} 
-                                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200"
-                                                    title={t('adminPage.deleteUserTitle')}
-                                                >
-                                                    <DeleteIcon className="w-5 h-5"/>
-                                                </button>
+                                            <div className="flex justify-end items-center space-x-3">
+                                                <button onClick={() => handleOpenPasswordModal(user)} className="text-gray-400 hover:text-indigo-600" title={t('adminPage.managePasswordTitle')}><KeyIcon className="w-5 h-5"/></button>
+                                                <button onClick={() => handleOpenUserModal(user)} className="text-gray-400 hover:text-indigo-600" title={t('adminPage.editUserTitle')}><EditIcon className="w-5 h-5"/></button>
+                                                <button onClick={() => handleOpenDeleteModal(user)} className="text-gray-400 hover:text-red-600" title={t('adminPage.deleteUserTitle')}><DeleteIcon className="w-5 h-5"/></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -250,52 +193,29 @@ const AdminPage: React.FC = () => {
                             </tbody>
                         </table>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
             
-            {isUserModalOpen && (
-                <UserManagementModal
-                    isOpen={isUserModalOpen}
-                    onClose={handleCloseUserModal}
-                    onSave={handleSaveUser}
-                    user={editingUser}
-                />
-            )}
-
-            {isConfirmModalOpen && userToDelete && (
-                <ConfirmationModal
-                    isOpen={isConfirmModalOpen}
-                    onClose={() => setIsConfirmModalOpen(false)}
-                    onConfirm={handleConfirmDelete}
+            <UserManagementModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} onSave={handleSaveUser} user={selectedUser} />
+            <ManageCredentialsModal isOpen={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} onSave={handleUpdatePassword} user={selectedUser} />
+            {selectedUser && (
+                <ConfirmationModal 
+                    isOpen={isDeleteModalOpen} 
+                    onClose={() => setIsDeleteModalOpen(false)} 
+                    onConfirm={handleDeleteUser} 
                     title={t('confirmationModal.confirmDelete')}
-                    message={
-                        userToDelete.id === currentUser?.id
-                        ? t('confirmationModal.deleteSelfWarning')
-                        : t('confirmationModal.deleteOtherUser', { userName: userToDelete.name })
-                    }
+                    message={selectedUser.id === currentUser?.id ? t('confirmationModal.deleteSelfWarning') : t('confirmationModal.deleteOtherUser', { userName: selectedUser.name })}
                 />
             )}
-
-            {isImportConfirmOpen && (
-                 <ConfirmationModal
-                    isOpen={isImportConfirmOpen}
-                    onClose={() => setIsImportConfirmOpen(false)}
-                    onConfirm={handleConfirmImport}
-                    title={t('confirmationModal.importWarningTitle')}
-                    message={t('confirmationModal.importWarningMessage')}
-                    confirmButtonClass="bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
-                    confirmButtonText={t('confirmationModal.importConfirm')}
-                />
-            )}
-
-            {isCredentialsModalOpen && userForCredentials && (
-                <ManageCredentialsModal
-                    isOpen={isCredentialsModalOpen}
-                    onClose={handleCloseCredentialsModal}
-                    onSave={handleUpdatePassword}
-                    user={userForCredentials}
-                />
-            )}
+             <ConfirmationModal 
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onConfirm={() => importFileRef.current?.click()}
+                title={t('confirmationModal.importWarningTitle')}
+                message={t('confirmationModal.importWarningMessage')}
+                confirmButtonClass="bg-indigo-600 hover:bg-indigo-700"
+                confirmButtonText={t('confirmationModal.importConfirm')}
+            />
         </div>
     );
 };
