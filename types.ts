@@ -4,9 +4,9 @@ export enum Role {
 }
 
 export enum TaskStatus {
-    PENDING = 'قيد التنفيذ',
-    COMPLETED = 'مكتملة',
-    ON_HOLD = 'معلقة',
+    PENDING = 'PENDING',
+    COMPLETED = 'COMPLETED',
+    ON_HOLD = 'ON_HOLD',
 }
 
 export interface Project {
@@ -16,7 +16,7 @@ export interface Project {
 }
 
 export interface User {
-    id: string;
+    id:string;
     name: string;
     role: Role;
     avatar: string;

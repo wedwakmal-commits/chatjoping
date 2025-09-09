@@ -1,31 +1,36 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Role } from '../types';
 import TasksPage from './TasksPage';
 import ChatPage from './ChatPage';
 import AdminPage from './AdminPage';
-import { TaskIcon, ChatIcon, AdminIcon, LogoutIcon, UserIcon } from '../components/icons';
+import { TaskIcon, ChatIcon, AdminIcon, LogoutIcon, LanguageIcon } from '../components/icons';
+import { useLanguage } from '../context/LanguageContext';
 
 type Page = 'tasks' | 'chat' | 'admin';
 
 const NavLink: React.FC<{ icon: React.ReactNode; label: string; isActive: boolean; onClick: () => void }> = ({ icon, label, isActive, onClick }) => (
     <button
         onClick={onClick}
-        className={`flex items-center w-full px-4 py-3 text-right text-base font-medium rounded-lg transition-colors duration-200 ${
+        className={`flex items-center w-full px-4 py-3 text-start text-base font-medium rounded-lg transition-colors duration-200 ${
             isActive
                 ? 'bg-indigo-600 text-white shadow-lg'
                 : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
         }`}
     >
         {icon}
-        <span className="mr-3">{label}</span>
+        <span className="ms-3">{label}</span>
     </button>
 );
 
 const DashboardLayout: React.FC = () => {
     const { user, logout } = useAuth();
+    const { language, setLanguage, t } = useLanguage();
     const [activePage, setActivePage] = useState<Page>('tasks');
+    
+    const toggleLanguage = () => {
+        setLanguage(language === 'ar' ? 'en' : 'ar');
+    };
 
     const renderPage = () => {
         switch (activePage) {
@@ -34,7 +39,7 @@ const DashboardLayout: React.FC = () => {
             case 'chat':
                 return <ChatPage />;
             case 'admin':
-                return user?.role === Role.ADMIN ? <AdminPage /> : <div className="text-center p-8"> وصول غير مصرح به. </div>;
+                return user?.role === Role.ADMIN ? <AdminPage /> : <div className="text-center p-8"> Unauthorized access. </div>;
             default:
                 return <TasksPage />;
         }
@@ -43,30 +48,30 @@ const DashboardLayout: React.FC = () => {
     return (
         <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
             {/* Sidebar */}
-            <aside className="w-64 flex-shrink-0 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-md flex flex-col">
+            <aside className="w-64 flex-shrink-0 bg-white dark:bg-gray-800 border-e border-gray-200 dark:border-gray-700 shadow-md flex flex-col">
                 <div className="h-16 flex items-center justify-center border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center text-indigo-500">
                         <TaskIcon className="w-8 h-8"/>
-                        <span className="ml-2 text-xl font-bold text-gray-800 dark:text-white">فريق العمل</span>
+                        <span className="me-2 text-xl font-bold text-gray-800 dark:text-white">{t('dashboard.team')}</span>
                     </div>
                 </div>
                 <nav className="flex-1 px-4 py-6 space-y-3">
                     <NavLink
                         icon={<TaskIcon className="w-6 h-6" />}
-                        label="المهام"
+                        label={t('dashboard.tasks')}
                         isActive={activePage === 'tasks'}
                         onClick={() => setActivePage('tasks')}
                     />
                     <NavLink
                         icon={<ChatIcon className="w-6 h-6" />}
-                        label="الدردشة"
+                        label={t('dashboard.chat')}
                         isActive={activePage === 'chat'}
                         onClick={() => setActivePage('chat')}
                     />
                     {user?.role === Role.ADMIN && (
                         <NavLink
                             icon={<AdminIcon className="w-6 h-6" />}
-                            label="الإدارة"
+                            label={t('dashboard.admin')}
                             isActive={activePage === 'admin'}
                             onClick={() => setActivePage('admin')}
                         />
@@ -75,17 +80,24 @@ const DashboardLayout: React.FC = () => {
                 <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
                    <div className="flex items-center mb-4">
                        <img src={user?.avatar} alt={user?.name} className="w-10 h-10 rounded-full"/>
-                       <div className="mr-3">
+                       <div className="ms-3">
                            <p className="font-semibold text-gray-800 dark:text-white">{user?.name}</p>
-                           <p className="text-sm text-gray-500 dark:text-gray-400">{user?.role === 'admin' ? 'مدير' : 'موظف'}</p>
+                           <p className="text-sm text-gray-500 dark:text-gray-400">{t(`roles.${user?.role}`)}</p>
                        </div>
                    </div>
+                   <button
+                        onClick={toggleLanguage}
+                        className="flex items-center w-full px-4 py-3 text-start text-base font-medium rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 mb-2"
+                    >
+                       <LanguageIcon className="w-6 h-6"/>
+                        <span className="ms-3">{t('language')}</span>
+                    </button>
                     <button
                         onClick={logout}
-                        className="flex items-center w-full px-4 py-3 text-right text-base font-medium rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50"
+                        className="flex items-center w-full px-4 py-3 text-start text-base font-medium rounded-lg text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50"
                     >
                        <LogoutIcon className="w-6 h-6"/>
-                        <span className="mr-3">تسجيل الخروج</span>
+                        <span className="ms-3">{t('dashboard.logout')}</span>
                     </button>
                 </div>
             </aside>

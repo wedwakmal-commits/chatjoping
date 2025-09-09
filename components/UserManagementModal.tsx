@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Role } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface UserManagementModalProps {
     isOpen: boolean;
@@ -9,6 +10,7 @@ interface UserManagementModalProps {
 }
 
 const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClose, onSave, user }) => {
+    const { t } = useLanguage();
     const [name, setName] = useState('');
     const [role, setRole] = useState<Role>(Role.EMPLOYEE);
     const [password, setPassword] = useState('');
@@ -63,7 +65,7 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClo
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 m-4">
-                <h2 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-white">{user ? 'تعديل المستخدم' : 'إنشاء مستخدم جديد'}</h2>
+                <h2 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-white">{user ? t('userManagementModal.editUser') : t('userManagementModal.createUser')}</h2>
                 <form onSubmit={handleSubmit}>
                     <div className="flex flex-col items-center mb-6">
                         <img src={avatar} alt="Avatar Preview" className="w-24 h-24 rounded-full object-cover mb-4 ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-gray-800" />
@@ -79,30 +81,30 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({ isOpen, onClo
                             onClick={() => fileInputRef.current?.click()}
                             className="px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200 dark:bg-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-800 transition-colors"
                         >
-                            تغيير الصورة
+                            {t('userManagementModal.changeAvatar')}
                         </button>
                     </div>
 
                     <div className="mb-4">
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">الاسم</label>
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('userManagementModal.name')}</label>
                         <input type="text" id="name" value={name} onChange={(e) => setName(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600" />
                     </div>
                     {!user && (
                         <div className="mb-4">
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">كلمة المرور</label>
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('userManagementModal.password')}</label>
                             <input type="password" id="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600" />
                         </div>
                     )}
                     <div className="mb-6">
-                        <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">الصلاحية</label>
+                        <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t('userManagementModal.role')}</label>
                         <select id="role" value={role} onChange={(e) => setRole(e.target.value as Role)} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600">
-                            <option value={Role.EMPLOYEE}>موظف</option>
-                            <option value={Role.ADMIN}>مدير</option>
+                            <option value={Role.EMPLOYEE}>{t('roles.employee')}</option>
+                            <option value={Role.ADMIN}>{t('roles.admin')}</option>
                         </select>
                     </div>
-                    <div className="flex justify-end space-x-2 space-x-reverse">
-                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">إلغاء</button>
-                        <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">حفظ</button>
+                    <div className="flex justify-end space-x-2">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">{t('cancel')}</button>
+                        <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">{t('userManagementModal.save')}</button>
                     </div>
                 </form>
             </div>

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { ToastMessage, ToastType } from '../context/ToastContext';
 import { SuccessIcon, WarningIcon, CloseIcon, InfoIcon } from './icons';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ToastProps {
     toast: ToastMessage;
@@ -28,6 +29,8 @@ const toastConfig: Record<ToastType, { icon: React.FC<any>; classes: string }> =
 
 
 const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
+    const { t } = useLanguage();
+
     useEffect(() => {
         const timer = setTimeout(() => {
             onClose();
@@ -43,19 +46,19 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
 
     return (
         <div 
-             className={`flex items-start w-full p-4 rounded-lg shadow-lg border-r-4 ${config.classes} animate-toast-in`}
+             className={`flex items-start w-full p-4 rounded-lg shadow-lg border-s-4 ${config.classes} animate-toast-in`}
              role="alert"
         >
             <div className="flex-shrink-0">
                 <Icon className="w-6 h-6" />
             </div>
-            <div className="mr-3 flex-1 text-sm font-medium whitespace-pre-wrap">
+            <div className="ms-3 flex-1 text-sm font-medium whitespace-pre-wrap">
                 {toast.message}
             </div>
             <button
                 onClick={onClose}
-                className="mr-3 -mx-1.5 -my-1.5 bg-transparent rounded-lg p-1.5 inline-flex h-8 w-8 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
-                aria-label="إغلاق"
+                className="ms-3 -mx-1.5 -my-1.5 bg-transparent rounded-lg p-1.5 inline-flex h-8 w-8 hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+                aria-label={t('close')}
             >
                 <CloseIcon className="w-5 h-5" />
             </button>
@@ -71,7 +74,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
 const keyframes = `
 @keyframes toast-in {
   from {
-    transform: translateX(-100%);
+    transform: translateX(var(--toast-translate-x, -100%));
     opacity: 0;
   }
   to {
@@ -79,6 +82,11 @@ const keyframes = `
     opacity: 1;
   }
 }
+
+html[dir="rtl"] .animate-toast-in {
+  --toast-translate-x: 100%;
+}
+
 .animate-toast-in {
   animation: toast-in 0.5s ease-out forwards;
 }

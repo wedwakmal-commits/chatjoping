@@ -65,8 +65,6 @@ const loadDb = (): AppDB => {
     return defaultDb;
 };
 
-let db: AppDB = loadDb();
-
 
 // --- MOCK DATA & HELPERS ---
 
@@ -78,6 +76,7 @@ const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export const mockLogin = async (accountId: string, password: string): Promise<User | null> => {
     await delay(500);
+    const db = loadDb();
     const user = db.users.find(u => u.accountId === accountId);
     if (user) {
         const creds = db.credentials[user.name];
@@ -90,13 +89,14 @@ export const mockLogin = async (accountId: string, password: string): Promise<Us
 
 export const mockRegisterAdmin = async (username: string, password: string, adminKey: string): Promise<User | null> => {
     await delay(500);
+    const db = loadDb();
 
     if (adminKey !== ADMIN_REGISTRATION_KEY) {
-        throw new Error('مفتاح تسجيل المدراء غير صحيح.');
+        throw new Error('errors.adminKeyIncorrect');
     }
 
     if (db.credentials[username]) {
-        throw new Error('اسم المستخدم هذا موجود بالفعل.');
+        throw new Error('errors.usernameExists');
     }
 
     const newId = `u${Date.now()}`;
@@ -122,16 +122,19 @@ export const mockLogout = () => {
 
 export const getUsers = async (): Promise<User[]> => {
     await delay(200);
+    const db = loadDb();
     return [...db.users];
 };
 
 export const getProjects = async (): Promise<Project[]> => {
     await delay(100);
+    const db = loadDb();
     return [...db.projects];
 };
 
 export const createProject = async (projectData: Omit<Project, 'id'>): Promise<Project> => {
     await delay(200);
+    const db = loadDb();
     const newProject: Project = {
         ...projectData,
         id: `p${Date.now()}`,
@@ -143,6 +146,7 @@ export const createProject = async (projectData: Omit<Project, 'id'>): Promise<P
 
 export const deleteProject = async (projectId: string): Promise<void> => {
     await delay(300);
+    const db = loadDb();
     db.tasks = db.tasks.map(task => {
         if (task.projectId === projectId) {
             return { ...task, projectId: null };
@@ -156,16 +160,19 @@ export const deleteProject = async (projectId: string): Promise<void> => {
 
 export const getTasks = async (): Promise<Task[]> => {
     await delay(300);
+    const db = loadDb();
     return [...db.tasks].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 };
 
 export const getChats = async (userId: string): Promise<Chat[]> => {
     await delay(300);
+    const db = loadDb();
     return db.chats.filter(c => c.participantIds.includes(userId));
 };
 
 export const createTask = async (taskData: Omit<Task, 'id'>): Promise<Task> => {
     await delay(400);
+    const db = loadDb();
     const newTask: Task = {
         ...taskData,
         id: `t${Date.now()}`,
@@ -177,6 +184,7 @@ export const createTask = async (taskData: Omit<Task, 'id'>): Promise<Task> => {
 
 export const updateTask = async (taskId: string, updates: Partial<Task>): Promise<Task> => {
     await delay(200);
+    const db = loadDb();
     let taskToUpdate = db.tasks.find(t => t.id === taskId);
     if (!taskToUpdate) throw new Error('Task not found');
     taskToUpdate = { ...taskToUpdate, ...updates };
@@ -187,6 +195,7 @@ export const updateTask = async (taskId: string, updates: Partial<Task>): Promis
 
 export const sendMessage = async (chatId: string, senderId: string, text: string): Promise<Message> => {
     await delay(100);
+    const db = loadDb();
     const newMessage: Message = {
         id: `m${Date.now()}`,
         senderId,
@@ -203,6 +212,7 @@ export const sendMessage = async (chatId: string, senderId: string, text: string
 
 export const findOrCreateChat = async (userId1: string, userId2:string): Promise<Chat> => {
     await delay(200);
+    const db = loadDb();
 
     const existingChat = db.chats.find(c =>
         !c.isGroup &&
@@ -235,9 +245,10 @@ export const findOrCreateChat = async (userId1: string, userId2:string): Promise
 
 export const createUser = async (userData: Omit<User, 'id' | 'accountId'>, password: string): Promise<User> => {
     await delay(400);
+    const db = loadDb();
     
     if (db.credentials[userData.name]) {
-        throw new Error('اسم المستخدم هذا موجود بالفعل.');
+        throw new Error('errors.usernameExists');
     }
 
     const newId = `u${Date.now()}`;
@@ -258,6 +269,7 @@ export const createUser = async (userData: Omit<User, 'id' | 'accountId'>, passw
 
 export const updateUser = async (userId: string, updates: Partial<User>): Promise<User> => {
     await delay(200);
+    const db = loadDb();
     let userToUpdate = db.users.find(u => u.id === userId);
     if (!userToUpdate) throw new Error('User not found');
 
@@ -266,7 +278,7 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
         const newUsername = updates.name;
         
         if (db.credentials[newUsername]) {
-            throw new Error('اسم المستخدم الجديد موجود بالفعل.');
+            throw new Error('errors.usernameExists');
         }
 
         if (db.credentials[oldUsername]) {
@@ -283,6 +295,7 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
 
 export const deleteUser = async (userId: string): Promise<void> => {
     await delay(300);
+    const db = loadDb();
 
     db.tasks = db.tasks.map(task => {
         if (task.assigneeIds.includes(userId)) {
@@ -323,12 +336,14 @@ export const deleteUser = async (userId: string): Promise<void> => {
 
 export const findAdminByAccountId = async (accountId: string): Promise<User | null> => {
     await delay(300);
+    const db = loadDb();
     const admin = db.users.find(u => u.role === Role.ADMIN && u.accountId === accountId);
     return admin || null;
 }
 
 export const createGroupChat = async (name: string, participantIds: string[], createdBy: string): Promise<Chat> => {
     await delay(400);
+    const db = loadDb();
     const allParticipants = [...new Set([createdBy, ...participantIds])];
     const newChat: Chat = {
         id: `cg${Date.now()}`,
@@ -344,6 +359,7 @@ export const createGroupChat = async (name: string, participantIds: string[], cr
 
 export const getUserPassword = async (userId: string): Promise<string | null> => {
     await delay(150);
+    const db = loadDb();
     const user = db.users.find(u => u.id === userId);
     if (user && db.credentials[user.name]) {
         return db.credentials[user.name].password;
@@ -353,11 +369,12 @@ export const getUserPassword = async (userId: string): Promise<string | null> =>
 
 export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
     await delay(300);
+    const db = loadDb();
     const user = db.users.find(u => u.id === userId);
     if (user && db.credentials[user.name]) {
         db.credentials[user.name].password = newPassword;
         saveDb(db);
     } else {
-        throw new Error("User not found or credentials don't exist.");
+        throw new Error("errors.userOrCredentialsNotFound");
     }
 }

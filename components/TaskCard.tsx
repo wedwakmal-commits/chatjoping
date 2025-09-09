@@ -1,5 +1,6 @@
 import React from 'react';
 import { Task, User, TaskStatus, Project } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface TaskCardProps {
     task: Task;
@@ -22,6 +23,7 @@ const getStatusColor = (status: TaskStatus) => {
 };
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, users, onStatusChange, projects }) => {
+    const { t, language } = useLanguage();
     const assignees = users.filter(user => task.assigneeIds.includes(user.id));
     const creator = users.find(user => user.id === task.createdBy);
     const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
@@ -42,21 +44,21 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, users, onStatusChange, projec
                 <div className="flex justify-between items-start mb-2">
                     <h3 className="font-bold text-lg text-gray-800 dark:text-white">{task.title}</h3>
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(task.status)}`}>
-                        {task.status}
+                        {t(`taskStatus.${task.status}`)}
                     </span>
                 </div>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{task.description}</p>
                 <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    <span className="font-semibold">تاريخ الاستحقاق:</span> {new Date(task.dueDate).toLocaleDateString('ar-EG')}
+                    <span className="font-semibold">{t('taskCard.dueDate')}:</span> {new Date(task.dueDate).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}
                 </div>
                 {creator && (
                     <div className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        <span className="font-semibold">أنشأها:</span> {creator.name}
+                        <span className="font-semibold">{t('taskCard.createdBy')}:</span> {creator.name}
                     </div>
                 )}
                 <div className="mb-4">
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">المسؤولون:</p>
-                    <div className="flex -space-x-2 space-x-reverse overflow-hidden">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('taskCard.assignees')}:</p>
+                    <div className="flex -space-x-2 rtl:space-x-reverse overflow-hidden">
                         {assignees.map(user => (
                             <img
                                 key={user.id}
@@ -75,9 +77,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, users, onStatusChange, projec
                     onChange={(e) => onStatusChange(task.id, e.target.value as TaskStatus)}
                     className="w-full p-2 border border-gray-300 rounded-md text-sm bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                    <option value={TaskStatus.PENDING}>قيد التنفيذ</option>
-                    <option value={TaskStatus.COMPLETED}>مكتملة</option>
-                    <option value={TaskStatus.ON_HOLD}>معلقة</option>
+                    <option value={TaskStatus.PENDING}>{t('taskStatus.PENDING')}</option>
+                    <option value={TaskStatus.COMPLETED}>{t('taskStatus.COMPLETED')}</option>
+                    <option value={TaskStatus.ON_HOLD}>{t('taskStatus.ON_HOLD')}</option>
                 </select>
             </div>
         </div>

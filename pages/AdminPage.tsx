@@ -7,6 +7,7 @@ import ManageCredentialsModal from '../components/ManageCredentialsModal';
 import { EditIcon, DeleteIcon, KeyIcon } from '../components/icons';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const AdminPage: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -17,6 +18,7 @@ const AdminPage: React.FC = () => {
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const { user: currentUser, logout, updateCurrentUser } = useAuth();
     const { addToast } = useToast();
+    const { t } = useLanguage();
 
     // State for credentials modal
     const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
@@ -49,14 +51,18 @@ const AdminPage: React.FC = () => {
     };
 
     const handleSaveUser = async (userData: { id?: string; name: string; role: Role; password?: string; avatar: string; }) => {
-        if (userData.id) {
-            const updatedUser = await updateUser(userData.id, { name: userData.name, role: userData.role, avatar: userData.avatar });
-            if (currentUser && updatedUser.id === currentUser.id) {
-                updateCurrentUser(updatedUser);
+        try {
+            if (userData.id) {
+                const updatedUser = await updateUser(userData.id, { name: userData.name, role: userData.role, avatar: userData.avatar });
+                if (currentUser && updatedUser.id === currentUser.id) {
+                    updateCurrentUser(updatedUser);
+                }
+            } else {
+                if(!userData.password) return;
+                await createUser({ name: userData.name, role: userData.role, avatar: userData.avatar }, userData.password);
             }
-        } else {
-            if(!userData.password) return;
-            await createUser({ name: userData.name, role: userData.role, avatar: userData.avatar }, userData.password);
+        } catch (err: any) {
+            addToast({ type: 'error', message: t(err.message) });
         }
         await fetchUsers();
         handleCloseUserModal();
@@ -98,37 +104,37 @@ const AdminPage: React.FC = () => {
     const handleUpdatePassword = async (userId: string, newPassword: string) => {
         try {
             await updateUserPassword(userId, newPassword);
-            addToast({ type: 'success', message: 'تم تحديث كلمة المرور بنجاح!' });
+            addToast({ type: 'success', message: t('adminPage.passwordUpdateSuccess') });
             handleCloseCredentialsModal();
         } catch (error) {
-            addToast({ type: 'error', message: 'فشل تحديث كلمة المرور.' });
+            addToast({ type: 'error', message: t('adminPage.passwordUpdateError') });
         }
     };
 
     return (
         <div className="p-6 md:p-8 h-full">
             <header className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">إدارة المستخدمين</h1>
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-white">{t('adminPage.userManagement')}</h1>
                 <button
                     onClick={() => handleOpenUserModal()}
                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow"
                 >
-                    + إضافة مستخدم
+                    {t('adminPage.addUser')}
                 </button>
             </header>
             
             {isLoading ? (
-                <div className="text-center py-10">جاري تحميل المستخدمين...</div>
+                <div className="text-center py-10">{t('adminPage.loadingUsers')}</div>
             ) : (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">المستخدم</th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">رقم الحساب</th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">الصلاحية</th>
+                                <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{t('adminPage.user')}</th>
+                                <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{t('adminPage.accountId')}</th>
+                                <th scope="col" className="px-6 py-3 text-start text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">{t('adminPage.role')}</th>
                                 <th scope="col" className="relative px-6 py-3">
-                                    <span className="sr-only">إجراءات</span>
+                                    <span className="sr-only">{t('adminPage.actions')}</span>
                                 </th>
                             </tr>
                         </thead>
@@ -140,7 +146,7 @@ const AdminPage: React.FC = () => {
                                             <div className="flex-shrink-0 h-10 w-10">
                                                 <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt={user.name} />
                                             </div>
-                                            <div className="mr-4">
+                                            <div className="ms-4">
                                                 <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
                                             </div>
                                         </div>
@@ -150,23 +156,25 @@ const AdminPage: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === Role.ADMIN ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                                            {user.role === Role.ADMIN ? 'مدير' : 'موظف'}
+                                            {t(`roles.${user.role}`)}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
-                                        <button onClick={() => handleOpenCredentialsModal(user)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 ml-4" title="إدارة كلمة المرور">
-                                            <KeyIcon className="w-5 h-5"/>
-                                        </button>
-                                        <button onClick={() => handleOpenUserModal(user)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200 ml-4" title="تعديل المستخدم">
-                                            <EditIcon className="w-5 h-5"/>
-                                        </button>
-                                        <button 
-                                            onClick={() => handlePromptDelete(user)} 
-                                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200"
-                                            title="حذف المستخدم"
-                                        >
-                                            <DeleteIcon className="w-5 h-5"/>
-                                        </button>
+                                    <td className="px-6 py-4 whitespace-nowrap text-end text-sm font-medium">
+                                        <div className="flex items-center justify-end space-x-4">
+                                            <button onClick={() => handleOpenCredentialsModal(user)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200" title={t('adminPage.managePasswordTitle')}>
+                                                <KeyIcon className="w-5 h-5"/>
+                                            </button>
+                                            <button onClick={() => handleOpenUserModal(user)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200" title={t('adminPage.editUserTitle')}>
+                                                <EditIcon className="w-5 h-5"/>
+                                            </button>
+                                            <button 
+                                                onClick={() => handlePromptDelete(user)} 
+                                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200"
+                                                title={t('adminPage.deleteUserTitle')}
+                                            >
+                                                <DeleteIcon className="w-5 h-5"/>
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -189,11 +197,11 @@ const AdminPage: React.FC = () => {
                     isOpen={isConfirmModalOpen}
                     onClose={() => setIsConfirmModalOpen(false)}
                     onConfirm={handleConfirmDelete}
-                    title="تأكيد الحذف"
+                    title={t('confirmationModal.confirmDelete')}
                     message={
                         userToDelete.id === currentUser?.id
-                        ? 'تحذير: أنت على وشك حذف حسابك الخاص. سيتم تسجيل خروجك فوراً. هل أنت متأكد؟'
-                        : `هل أنت متأكد من حذف المستخدم "${userToDelete.name}"؟ سيتم إزالته من جميع المهام المسندة إليه.`
+                        ? t('confirmationModal.deleteSelfWarning')
+                        : t('confirmationModal.deleteOtherUser', { userName: userToDelete.name })
                     }
                 />
             )}

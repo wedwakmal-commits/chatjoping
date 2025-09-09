@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface ConfirmationModalProps {
     isOpen: boolean;
@@ -9,6 +10,8 @@ interface ConfirmationModalProps {
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, onConfirm, title, message }) => {
+    const { t } = useLanguage();
+
     if (!isOpen) return null;
 
     return (
@@ -16,18 +19,18 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, onClose, 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 m-4 text-center">
                 <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">{title}</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-6">{message}</p>
-                <div className="flex justify-center space-x-4 space-x-reverse">
+                <div className="flex justify-center space-x-4">
                     <button 
                         onClick={onClose} 
                         className="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition-colors"
                     >
-                        إلغاء
+                        {t('cancel')}
                     </button>
                     <button 
                         onClick={onConfirm} 
                         className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
                     >
-                        تأكيد الحذف
+                        {t('confirmationModal.confirm')}
                     </button>
                 </div>
             </div>

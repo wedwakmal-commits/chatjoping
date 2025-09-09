@@ -5,6 +5,7 @@ import TaskCard from '../components/TaskCard';
 import CreateTaskModal from '../components/CreateTaskModal';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 
 type ProjectFilter = 'all' | 'unassigned' | string;
 
@@ -16,6 +17,7 @@ const ProjectSidebar: React.FC<{
 }> = ({ projects, selectedProjectId, onSelectProject, onAddProject }) => {
     const [newProjectName, setNewProjectName] = useState('');
     const [isAdding, setIsAdding] = useState(false);
+    const { t } = useLanguage();
 
     const handleAddSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -34,13 +36,13 @@ const ProjectSidebar: React.FC<{
     }> = ({ onClick, isActive, children, color }) => (
         <button
             onClick={onClick}
-            className={`flex items-center w-full text-right px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+            className={`flex items-center w-full text-start px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
                 isActive
                     ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
                     : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
             }`}
         >
-            {color && <span className="w-3 h-3 rounded-full ml-3 flex-shrink-0" style={{ backgroundColor: color }}></span>}
+            {color && <span className="w-3 h-3 rounded-full me-3 flex-shrink-0" style={{ backgroundColor: color }}></span>}
             <span className="truncate">{children}</span>
         </button>
     );
@@ -48,14 +50,14 @@ const ProjectSidebar: React.FC<{
     return (
         <>
             <div className="h-16 flex items-center justify-center border-b border-gray-200 dark:border-gray-700 px-4">
-                <h2 className="text-lg font-bold text-gray-800 dark:text-white">المشاريع</h2>
+                <h2 className="text-lg font-bold text-gray-800 dark:text-white">{t('tasksPage.projects')}</h2>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
                 <ProjectButton onClick={() => onSelectProject('all')} isActive={selectedProjectId === 'all'}>
-                    كل المهام
+                    {t('tasksPage.allTasks')}
                 </ProjectButton>
                 <ProjectButton onClick={() => onSelectProject('unassigned')} isActive={selectedProjectId === 'unassigned'}>
-                    مهام عامة
+                    {t('tasksPage.generalTasks')}
                 </ProjectButton>
                 <hr className="my-3 border-gray-200 dark:border-gray-700" />
                 {projects.map(project => (
@@ -76,18 +78,18 @@ const ProjectSidebar: React.FC<{
                             type="text"
                             value={newProjectName}
                             onChange={e => setNewProjectName(e.target.value)}
-                            placeholder="اسم المشروع الجديد..."
+                            placeholder={t('tasksPage.newProjectPlaceholder')}
                             className="w-full px-3 py-2 text-sm border rounded-md dark:bg-gray-600 dark:border-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             autoFocus
                         />
-                        <div className="flex justify-end space-x-2 space-x-reverse mt-2">
-                             <button type="button" onClick={() => setIsAdding(false)} className="px-3 py-1 text-xs rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 dark:text-gray-200 dark:bg-gray-500 dark:hover:bg-gray-400">إلغاء</button>
-                             <button type="submit" className="px-3 py-1 text-xs rounded-md text-white bg-indigo-600 hover:bg-indigo-700">إضافة</button>
+                        <div className="flex justify-end space-x-2 mt-2">
+                             <button type="button" onClick={() => setIsAdding(false)} className="px-3 py-1 text-xs rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300 dark:text-gray-200 dark:bg-gray-500 dark:hover:bg-gray-400">{t('tasksPage.cancel')}</button>
+                             <button type="submit" className="px-3 py-1 text-xs rounded-md text-white bg-indigo-600 hover:bg-indigo-700">{t('tasksPage.add')}</button>
                         </div>
                     </form>
                 ) : (
                     <button onClick={() => setIsAdding(true)} className="w-full px-4 py-2 text-sm bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900 transition-colors">
-                        + مشروع جديد
+                        {t('tasksPage.addNewProject')}
                     </button>
                 )}
             </div>
@@ -105,6 +107,7 @@ const TasksPage: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const { user: currentUser } = useAuth();
     const { addToast } = useToast();
+    const { t } = useLanguage();
     const [notifiedTaskIds, setNotifiedTaskIds] = useState<Set<string>>(new Set());
     const [selectedProjectId, setSelectedProjectId] = useState<ProjectFilter>('all');
 
@@ -142,7 +145,7 @@ const TasksPage: React.FC = () => {
                     if (!notifiedTaskIds.has(task.id)) {
                          addToast({
                             type: 'warning',
-                            message: `تنبيه: موعد استحقاق المهمة '${task.title}' يقترب!`,
+                            message: t('tasksPage.dueDateAlert', { taskTitle: task.title }),
                         });
                         setNotifiedTaskIds(prev => new Set(prev).add(task.id));
                     }
@@ -151,14 +154,14 @@ const TasksPage: React.FC = () => {
         };
 
         checkDueDates();
-    }, [tasks, currentUser, addToast]);
+    }, [tasks, currentUser, addToast, t]);
     
     const handleCreateTask = async (taskData: Omit<Task, 'id' | 'createdBy'>) => {
         if (!currentUser) return;
         const newTask = await createTask({ ...taskData, createdBy: currentUser.id });
         setTasks(prevTasks => [newTask, ...prevTasks]);
         setIsModalOpen(false);
-        addToast({ type: 'success', message: 'تم إنشاء المهمة بنجاح!' });
+        addToast({ type: 'success', message: t('tasksPage.taskCreatedSuccess') });
     };
 
     const handleUpdateTaskStatus = async (taskId: string, status: TaskStatus) => {
@@ -172,7 +175,7 @@ const TasksPage: React.FC = () => {
         if (wasAssignedToMe && updatedTask.status === TaskStatus.COMPLETED) {
             addToast({
                 type: 'success',
-                message: `أحسنت! لقد أكملت مهمة: "${updatedTask.title}"`,
+                message: t('tasksPage.taskCompletedSuccess', { taskTitle: updatedTask.title }),
             });
         }
     };
@@ -182,7 +185,7 @@ const TasksPage: React.FC = () => {
         const newProject = await createProject({ name, color: randomColor });
         setProjects(prev => [...prev, newProject]);
         setSelectedProjectId(newProject.id);
-        addToast({ type: 'success', message: `تم إنشاء مشروع "${name}" بنجاح!` });
+        addToast({ type: 'success', message: t('tasksPage.projectCreatedSuccess', { projectName: name }) });
     };
 
     const filteredTasks = useMemo(() => {
@@ -204,28 +207,28 @@ const TasksPage: React.FC = () => {
     }, [tasks, users, activeTab, searchTerm, selectedProjectId]);
     
     const tabs: { label: string; value: TaskStatus | 'all' }[] = [
-        { label: 'الكل', value: 'all' },
-        { label: 'قيد التنفيذ', value: TaskStatus.PENDING },
-        { label: 'مكتملة', value: TaskStatus.COMPLETED },
-        { label: 'معلقة', value: TaskStatus.ON_HOLD },
+        { label: t('tasksPage.tabAll'), value: 'all' },
+        { label: t('tasksPage.tabPending'), value: TaskStatus.PENDING },
+        { label: t('tasksPage.tabCompleted'), value: TaskStatus.COMPLETED },
+        { label: t('tasksPage.tabOnHold'), value: TaskStatus.ON_HOLD },
     ];
 
     const selectedProject = projects.find(p => p.id === selectedProjectId);
     const pageTitle = selectedProjectId === 'all' 
-        ? 'كل المهام' 
+        ? t('tasksPage.allTasks') 
         : selectedProjectId === 'unassigned' 
-        ? 'مهام عامة' 
-        : selectedProject?.name || 'سجل المهام';
+        ? t('tasksPage.generalTasks')
+        : selectedProject?.name || t('tasksPage.taskBoard');
 
     return (
         <div className="flex h-full bg-gray-100 dark:bg-gray-900">
              <main className="flex-1 p-6 md:p-8 overflow-y-auto">
                 <header className="flex flex-col md:flex-row justify-between items-center mb-6">
                     <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-4 md:mb-0">{pageTitle}</h1>
-                    <div className="flex items-center space-x-2 space-x-reverse">
+                    <div className="flex items-center space-x-2">
                         <input
                             type="text"
-                            placeholder="ابحث في المهام..."
+                            placeholder={t('tasksPage.searchTasks')}
                             className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-64 bg-white dark:bg-gray-700 dark:border-gray-600"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
@@ -234,13 +237,13 @@ const TasksPage: React.FC = () => {
                             onClick={() => setIsModalOpen(true)}
                             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-md whitespace-nowrap"
                         >
-                            + مهمة جديدة
+                            {t('tasksPage.newTask')}
                         </button>
                     </div>
                 </header>
                 
                 <div className="border-b border-gray-200 dark:border-gray-700 mb-4">
-                    <nav className="-mb-px flex space-x-4 space-x-reverse" aria-label="Tabs">
+                    <nav className="-mb-px flex space-x-4" aria-label="Tabs">
                         {tabs.map(tab => (
                             <button
                                 key={tab.value}
@@ -258,7 +261,7 @@ const TasksPage: React.FC = () => {
                 </div>
 
                 {isLoading ? (
-                    <div className="text-center py-10">جاري تحميل المهام...</div>
+                    <div className="text-center py-10">{t('tasksPage.loadingTasks')}</div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {filteredTasks.length > 0 ? (
@@ -272,13 +275,13 @@ const TasksPage: React.FC = () => {
                                 />
                             ))
                         ) : (
-                            <p className="col-span-full text-center py-10 text-gray-500">لا توجد مهام تطابق بحثك.</p>
+                            <p className="col-span-full text-center py-10 text-gray-500">{t('tasksPage.noTasksFound')}</p>
                         )}
                     </div>
                 )}
             </main>
             
-            <aside className="w-72 flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+            <aside className="w-72 flex-shrink-0 bg-white dark:bg-gray-800 border-s border-gray-200 dark:border-gray-700 flex flex-col">
                 <ProjectSidebar 
                     projects={projects}
                     selectedProjectId={selectedProjectId}
