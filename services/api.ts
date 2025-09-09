@@ -257,12 +257,6 @@ export const markMessagesAsRead = async (chatId: string, readerId: string): Prom
     }
 };
 
-export const searchAdminByAccountId = async (accountId: string): Promise<User | null> => {
-    await delay(500);
-    const user = db.users.find(u => u.accountId === accountId && u.role === Role.ADMIN);
-    return user || null;
-};
-
 // In-memory state for typing indicators, not persisted
 let typingIndicators: Record<string, { userId: string, timestamp: number }[]> = {};
 

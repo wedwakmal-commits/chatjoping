@@ -80,20 +80,9 @@ export const translations = {
     // Chat Page
     chatPage: {
       title: "الدردشة",
-      syncChatsTitle: "مزامنة المحادثات",
-      newGroup: "+ إنشاء مجموعة جديدة",
-      searchAdmin: "البحث عن مدير",
-      searchAdminPlaceholder: "أدخل رقم حساب المدير...",
-      search: "بحث",
-      searching: "...",
-      searchErrorSelf: "لا يمكنك البحث عن نفسك.",
-      searchErrorNotFound: "لم يتم العثور على مدير بهذا الرقم.",
-      searchErrorGeneric: "حدث خطأ أثناء البحث.",
-      startChat: "بدء الدردشة",
-      currentConversations: "المحادثات الحالية",
-      startNewConversation: "بدء محادثة جديدة",
+      newChat: "+ محادثة جديدة",
+      newGroup: "+ مجموعة جديدة",
       unknownUser: "مستخدم غير معروف",
-      startConversationPrompt: "ابدأ المحادثة",
       selectConversationPrompt: "اختر محادثة أو ابدأ محادثة جديدة",
       typeMessagePlaceholder: "اكتب رسالتك هنا...",
       send: "إرسال",
@@ -101,6 +90,12 @@ export const translations = {
       newMessageFrom: "رسالة جديدة من {senderName} في \"{chatName}\"",
       isTyping: "يكتب...",
       searchInConversation: "ابحث في المحادثة...",
+    },
+    // New Chat Modal
+    newChatModal: {
+      title: "بدء محادثة جديدة",
+      searchPlaceholder: "ابحث بالاسم أو رقم الحساب...",
+      noUsersFound: "لم يتم العثور على مستخدمين.",
     },
     // Create Group Modal
     createGroupModal: {
@@ -294,20 +289,9 @@ export const translations = {
     // Chat Page
     chatPage: {
       title: "Chat",
-      syncChatsTitle: "Sync Chats",
+      newChat: "+ New Chat",
       newGroup: "+ New Group",
-      searchAdmin: "Search for Admin",
-      searchAdminPlaceholder: "Enter admin's account ID...",
-      search: "Search",
-      searching: "...",
-      searchErrorSelf: "You cannot search for yourself.",
-      searchErrorNotFound: "No admin found with this ID.",
-      searchErrorGeneric: "An error occurred while searching.",
-      startChat: "Start Chat",
-      currentConversations: "Current Conversations",
-      startNewConversation: "Start a New Conversation",
       unknownUser: "Unknown User",
-      startConversationPrompt: "Start the conversation",
       selectConversationPrompt: "Select a conversation or start a new one",
       typeMessagePlaceholder: "Type your message here...",
       send: "Send",
@@ -315,6 +299,12 @@ export const translations = {
       newMessageFrom: "New message from {senderName} in \"{chatName}\"",
       isTyping: "is typing...",
       searchInConversation: "Search in conversation...",
+    },
+     // New Chat Modal
+    newChatModal: {
+      title: "Start a New Chat",
+      searchPlaceholder: "Search by name or account ID...",
+      noUsersFound: "No users found.",
     },
     // Create Group Modal
     createGroupModal: {

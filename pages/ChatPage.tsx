@@ -1,12 +1,89 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Chat, User, Message } from '../types';
-import { getChats, getUsers, createChat, sendMessage, searchAdminByAccountId, markMessagesAsRead, getTypingUsers, startTyping, stopTyping } from '../services/api';
+import { Chat, User, Message, Role } from '../types';
+import { getChats, getUsers, createChat, sendMessage, markMessagesAsRead, getTypingUsers, startTyping, stopTyping } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import CreateGroupModal from '../components/CreateGroupModal';
 import { SearchIcon, CloseIcon, ChevronUpIcon, ChevronDownIcon, CheckCircleIcon } from '../components/icons';
 import { useDebouncedCallback } from 'use-debounce';
+
+interface NewChatModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onStartChat: (userId: string) => void;
+    users: User[];
+}
+
+const NewChatModal: React.FC<NewChatModalProps> = ({ isOpen, onClose, onStartChat, users }) => {
+    const { t } = useLanguage();
+    const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setSearchTerm('');
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const filteredUsers = users.filter(user => 
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.accountId.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const handleUserClick = (userId: string) => {
+        onStartChat(userId);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md flex flex-col" style={{height: 'clamp(300px, 80vh, 600px)'}}>
+                <h2 className="text-xl font-bold p-4 border-b border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white flex-shrink-0">{t('newChatModal.title')}</h2>
+                
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <div className="relative">
+                        <SearchIcon className="absolute top-1/2 -translate-y-1/2 start-3 w-5 h-5 text-gray-400" />
+                        <input 
+                            type="text"
+                            placeholder={t('newChatModal.searchPlaceholder')}
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="w-full ps-10 p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                    {filteredUsers.length > 0 ? (
+                        <ul>
+                            {filteredUsers.map(user => (
+                                <li key={user.id}>
+                                    <button 
+                                        onClick={() => handleUserClick(user.id)}
+                                        className="w-full text-start flex items-center p-4 space-x-3 rtl:space-x-reverse hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                        <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full"/>
+                                        <div>
+                                            <p className="font-semibold text-gray-800 dark:text-white">{user.name}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">@{user.accountId}</p>
+                                        </div>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-center p-8 text-gray-500">{t('newChatModal.noUsersFound')}</p>
+                    )}
+                </div>
+
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 flex justify-end">
+                     <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">{t('cancel')}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const ChatPage: React.FC = () => {
     const [chats, setChats] = useState<Chat[]>([]);
@@ -15,8 +92,7 @@ const ChatPage: React.FC = () => {
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-    const [isSearching, setIsSearching] = useState(false);
-    const [searchAccountId, setSearchAccountId] = useState('');
+    const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
     const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<string[]>([]);
@@ -160,33 +236,18 @@ const ChatPage: React.FC = () => {
         addToast({ type: 'success', message: t('chatPage.newGroupSuccess', { groupName: newGroup.name }) });
     };
 
-    const handleSearchAndStartChat = async () => {
-        if (!searchAccountId.trim() || !currentUser) return;
-        if(users.find(u=>u.id === currentUser.id)?.accountId === searchAccountId) {
-            addToast({ type: 'error', message: t('chatPage.searchErrorSelf') });
-            return;
+    const handleStartChatWithUser = async (userId: string) => {
+        if (!currentUser) return;
+
+        const existingChat = chats.find(c => !c.isGroup && c.participantIds.includes(userId) && c.participantIds.includes(currentUser.id));
+        if (existingChat) {
+            setActiveChat(existingChat);
+        } else {
+            const newChat = await createChat({ name: 'DM', participantIds: [currentUser.id, userId], isGroup: false });
+            setChats(prev => [newChat, ...prev]);
+            setActiveChat(newChat);
         }
-        setIsSearching(true);
-        try {
-            const admin = await searchAdminByAccountId(searchAccountId);
-            if (admin) {
-                const existingChat = chats.find(c => !c.isGroup && c.participantIds.includes(admin.id) && c.participantIds.includes(currentUser.id));
-                if (existingChat) {
-                    setActiveChat(existingChat);
-                } else {
-                    const newChat = await createChat({ name: 'DM', participantIds: [currentUser.id, admin.id], isGroup: false });
-                    setChats(prev => [newChat, ...prev]);
-                    setActiveChat(newChat);
-                }
-                setSearchAccountId('');
-            } else {
-                addToast({ type: 'error', message: t('chatPage.searchErrorNotFound') });
-            }
-        } catch (error) {
-            addToast({ type: 'error', message: t('chatPage.searchErrorGeneric') });
-        } finally {
-            setIsSearching(false);
-        }
+        setIsNewChatModalOpen(false);
     };
 
     const handleSearchResultNavigation = (direction: 'next' | 'prev') => {
@@ -245,25 +306,18 @@ const ChatPage: React.FC = () => {
             <aside className="w-80 flex-shrink-0 bg-white dark:bg-gray-800 border-e border-gray-200 dark:border-gray-700 flex flex-col">
                 <div className="h-16 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-4">
                     <h2 className="text-lg font-bold text-gray-800 dark:text-white">{t('chatPage.title')}</h2>
-                    <button onClick={() => setIsGroupModalOpen(true)} className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900">
-                        {t('chatPage.newGroup')}
-                    </button>
-                </div>
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-semibold mb-2">{t('chatPage.searchAdmin')}</p>
-                    <div className="flex space-x-2">
-                        <input 
-                            type="text" 
-                            placeholder={t('chatPage.searchAdminPlaceholder')}
-                            value={searchAccountId}
-                            onChange={(e) => setSearchAccountId(e.target.value)}
-                            className="flex-grow px-3 py-1.5 text-sm border rounded-md dark:bg-gray-600 dark:border-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                        <button onClick={handleSearchAndStartChat} disabled={isSearching} className="px-3 py-1.5 text-sm rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400">
-                            {isSearching ? t('chatPage.searching') : t('chatPage.search')}
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                        {currentUser?.role === Role.ADMIN && (
+                            <button onClick={() => setIsNewChatModalOpen(true)} className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900">
+                                {t('chatPage.newChat')}
+                            </button>
+                        )}
+                        <button onClick={() => setIsGroupModalOpen(true)} className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900">
+                            {t('chatPage.newGroup')}
                         </button>
                     </div>
                 </div>
+                
                 <div className="flex-1 overflow-y-auto">
                     {userChats.map(chat => (
                         <button key={chat.id} onClick={() => setActiveChat(chat)} className={`w-full text-start px-4 py-3 flex items-center space-x-3 transition-colors ${activeChat?.id === chat.id ? 'bg-indigo-100 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
@@ -355,6 +409,12 @@ const ChatPage: React.FC = () => {
                     <div className="flex-1 flex items-center justify-center text-gray-500">{t('chatPage.selectConversationPrompt')}</div>
                 )}
             </main>
+            <NewChatModal 
+                isOpen={isNewChatModalOpen} 
+                onClose={() => setIsNewChatModalOpen(false)} 
+                onStartChat={handleStartChatWithUser} 
+                users={users.filter(u => u.id !== currentUser?.id)} 
+            />
             <CreateGroupModal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} onSave={handleCreateGroup} users={users.filter(u => u.id !== currentUser?.id)} />
         </div>
     );
