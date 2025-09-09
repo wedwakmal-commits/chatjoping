@@ -2,12 +2,7 @@ import { User, Role, Task, TaskStatus, Chat, Message, Project } from '../types';
 
 // --- MOCK DATA ---
 
-let users: User[] = [
-    { id: '1', name: 'علي', role: Role.ADMIN, avatar: 'https://i.pravatar.cc/150?u=1' },
-    { id: '2', name: 'فاطمة الزهراء', role: Role.EMPLOYEE, avatar: 'https://i.pravatar.cc/150?u=2' },
-    { id: '3', name: 'خالد الأحمد', role: Role.EMPLOYEE, avatar: 'https://i.pravatar.cc/150?u=3' },
-    { id: '4', name: 'سارة عبدالله', role: Role.EMPLOYEE, avatar: 'https://i.pravatar.cc/150?u=4' },
-];
+let users: User[] = [];
 
 let projects: Project[] = [
     { id: 'p1', name: 'تطوير الواجهة الأمامية', color: '#3b82f6' },
@@ -15,57 +10,18 @@ let projects: Project[] = [
     { id: 'p3', name: 'حملة التسويق الرقمي', color: '#f97316' },
 ];
 
-let tasks: Task[] = [
-    { id: 't1', title: 'تصميم الواجهة الرئيسية', description: 'إعداد تصميم أولي لواجهة التطبيق الرئيسية مع مراعاة تجربة المستخدم.', assigneeIds: ['2'], dueDate: '2024-08-15', status: TaskStatus.PENDING, createdBy: '1', projectId: 'p1' },
-    { id: 't2', title: 'إعداد قاعدة البيانات', description: 'تصميم وهيكلة قاعدة البيانات المحلية لتخزين بيانات المهام والمستخدمين.', assigneeIds: ['3'], dueDate: '2024-08-10', status: TaskStatus.COMPLETED, createdBy: '1', projectId: 'p2' },
-    { id: 't3', title: 'تطوير وحدة الدردشة', description: 'بناء المكونات الأساسية لوظيفة الدردشة الفورية بين الموظفين.', assigneeIds: ['2', '4'], dueDate: '2024-08-20', status: TaskStatus.PENDING, createdBy: '1', projectId: 'p1' },
-    { id: 't4', title: 'اختبار التطبيق', description: 'إجراء اختبار شامل لجميع وظائف التطبيق قبل الإطلاق.', assigneeIds: ['4'], dueDate: '2024-08-25', status: TaskStatus.ON_HOLD, createdBy: '1', projectId: null },
-];
+let tasks: Task[] = [];
 
-let chats: Chat[] = [
-    {
-        id: 'c1',
-        name: 'فاطمة الزهراء',
-        participantIds: ['1', '2'],
-        messages: [
-            { id: 'm1', senderId: '1', text: 'مرحباً، كيف حال تصميم الواجهة الرئيسية؟', timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
-            { id: 'm2', senderId: '2', text: 'أهلاً، كل شيء يسير على ما يرام. سأرسل لكِ نسخة أولية غداً.', timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString() },
-        ],
-        isGroup: false,
-    },
-    {
-        id: 'c2',
-        name: 'مشروع إطلاق التطبيق',
-        participantIds: ['1', '2', '3', '4'],
-        messages: [
-            { id: 'm3', senderId: '1', text: 'فريق، اجتماعنا القادم سيكون يوم الأحد لمناقشة التقدم.', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
-            { id: 'm4', senderId: '3', text: 'ممتاز، سأكون جاهزاً.', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 23).toISOString() },
-        ],
-        isGroup: true,
-    },
-     {
-        id: 'c3',
-        name: 'خالد الأحمد',
-        participantIds: ['1', '3'],
-        messages: [
-             { id: 'm5', senderId: '1', text: 'هل تم الانتهاء من إعداد قاعدة البيانات؟', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString() },
-             { id: 'm6', senderId: '3', text: 'نعم، تم الأمر بنجاح.', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 47).toISOString() },
-        ],
-        isGroup: false,
-    },
-];
+let chats: Chat[] = [];
+
+const ADMIN_REGISTRATION_KEY = 'super-secret-admin-key-123';
 
 const db = {
     users,
     tasks,
     chats,
     projects,
-    credentials: {
-        'علي': { password: 'admin', userId: '1' },
-        'فاطمة الزهراء': { password: 'user', userId: '2' },
-        'خالد الأحمد': { password: 'password', userId: '3' },
-        'سارة عبدالله': { password: 'password', userId: '4' },
-    }
+    credentials: {}
 };
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -80,6 +36,31 @@ export const mockLogin = async (username: string, password: string): Promise<Use
         return db.users.find(u => u.id === creds.userId) || null;
     }
     return null;
+};
+
+export const mockRegisterAdmin = async (username: string, password: string, adminKey: string): Promise<User | null> => {
+    await delay(500);
+
+    if (adminKey !== ADMIN_REGISTRATION_KEY) {
+        throw new Error('مفتاح تسجيل المدراء غير صحيح.');
+    }
+
+    if ((db.credentials as any)[username]) {
+        throw new Error('اسم المستخدم هذا موجود بالفعل.');
+    }
+
+    const newId = `u${Date.now()}`;
+    const newUser: User = {
+        id: newId,
+        name: username,
+        role: Role.ADMIN,
+        avatar: `https://i.pravatar.cc/150?u=${newId}`,
+    };
+
+    db.users.push(newUser);
+    (db.credentials as any)[username] = { password, userId: newUser.id };
+    
+    return newUser;
 };
 
 export const mockLogout = () => {

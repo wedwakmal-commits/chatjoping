@@ -1,12 +1,13 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import { User } from '../types';
-import { mockLogin, mockLogout } from '../services/api';
+import { mockLogin, mockLogout, mockRegisterAdmin } from '../services/api';
 
 interface AuthContextType {
     user: User | null;
     login: (username: string, password: string) => Promise<User | null>;
     logout: () => void;
     updateCurrentUser: (updatedUser: User) => void;
+    registerAdmin: (username: string, password: string, adminKey: string) => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,9 +42,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStorage.setItem('user', JSON.stringify(updatedUser));
     }, []);
 
+    const registerAdmin = useCallback(async (username: string, password: string, adminKey: string): Promise<User | null> => {
+        const newAdmin = await mockRegisterAdmin(username, password, adminKey);
+        if (newAdmin) {
+            setUser(newAdmin);
+            localStorage.setItem('user', JSON.stringify(newAdmin));
+        }
+        return newAdmin;
+    }, []);
+
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, updateCurrentUser }}>
+        <AuthContext.Provider value={{ user, login, logout, updateCurrentUser, registerAdmin }}>
             {children}
         </AuthContext.Provider>
     );
