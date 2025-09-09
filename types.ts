@@ -20,7 +20,7 @@ export interface User {
     name: string;
     role: Role;
     avatar: string;
-    accountId?: string;
+    accountId: string;
 }
 
 export interface Task {

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role } from '../types';
-import { getUsers, createUser, updateUser, deleteUser } from '../services/api';
+import { getUsers, createUser, updateUser, deleteUser, updateUserPassword } from '../services/api';
 import UserManagementModal from '../components/UserManagementModal';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { EditIcon, DeleteIcon } from '../components/icons';
+import ManageCredentialsModal from '../components/ManageCredentialsModal';
+import { EditIcon, DeleteIcon, KeyIcon } from '../components/icons';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const AdminPage: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -14,6 +16,11 @@ const AdminPage: React.FC = () => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const { user: currentUser, logout, updateCurrentUser } = useAuth();
+    const { addToast } = useToast();
+
+    // State for credentials modal
+    const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
+    const [userForCredentials, setUserForCredentials] = useState<User | null>(null);
 
     const fetchUsers = async () => {
         setIsLoading(true);
@@ -77,6 +84,26 @@ const AdminPage: React.FC = () => {
         }
     };
 
+    // Handlers for Credentials modal
+    const handleOpenCredentialsModal = (user: User) => {
+        setUserForCredentials(user);
+        setIsCredentialsModalOpen(true);
+    };
+
+    const handleCloseCredentialsModal = () => {
+        setUserForCredentials(null);
+        setIsCredentialsModalOpen(false);
+    };
+
+    const handleUpdatePassword = async (userId: string, newPassword: string) => {
+        try {
+            await updateUserPassword(userId, newPassword);
+            addToast({ type: 'success', message: 'تم تحديث كلمة المرور بنجاح!' });
+            handleCloseCredentialsModal();
+        } catch (error) {
+            addToast({ type: 'error', message: 'فشل تحديث كلمة المرور.' });
+        }
+    };
 
     return (
         <div className="p-6 md:p-8 h-full">
@@ -101,7 +128,7 @@ const AdminPage: React.FC = () => {
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">رقم الحساب</th>
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">الصلاحية</th>
                                 <th scope="col" className="relative px-6 py-3">
-                                    <span className="sr-only">تعديل</span>
+                                    <span className="sr-only">إجراءات</span>
                                 </th>
                             </tr>
                         </thead>
@@ -119,7 +146,7 @@ const AdminPage: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                        {user.role === Role.ADMIN ? user.accountId : '-'}
+                                        {user.accountId}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${user.role === Role.ADMIN ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
@@ -127,13 +154,16 @@ const AdminPage: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
-                                        <button onClick={() => handleOpenUserModal(user)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200 ml-4">
+                                        <button onClick={() => handleOpenCredentialsModal(user)} className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 ml-4" title="إدارة كلمة المرور">
+                                            <KeyIcon className="w-5 h-5"/>
+                                        </button>
+                                        <button onClick={() => handleOpenUserModal(user)} className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200 ml-4" title="تعديل المستخدم">
                                             <EditIcon className="w-5 h-5"/>
                                         </button>
                                         <button 
                                             onClick={() => handlePromptDelete(user)} 
                                             className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200"
-                                            title={'حذف المستخدم'}
+                                            title="حذف المستخدم"
                                         >
                                             <DeleteIcon className="w-5 h-5"/>
                                         </button>
@@ -165,6 +195,15 @@ const AdminPage: React.FC = () => {
                         ? 'تحذير: أنت على وشك حذف حسابك الخاص. سيتم تسجيل خروجك فوراً. هل أنت متأكد؟'
                         : `هل أنت متأكد من حذف المستخدم "${userToDelete.name}"؟ سيتم إزالته من جميع المهام المسندة إليه.`
                     }
+                />
+            )}
+
+            {isCredentialsModalOpen && userForCredentials && (
+                <ManageCredentialsModal
+                    isOpen={isCredentialsModalOpen}
+                    onClose={handleCloseCredentialsModal}
+                    onSave={handleUpdatePassword}
+                    user={userForCredentials}
                 />
             )}
         </div>

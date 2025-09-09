@@ -7,7 +7,7 @@ const LoginPage: React.FC = () => {
     const [mode, setMode] = useState<AuthMode>('login');
     
     // Login States
-    const [username, setUsername] = useState('');
+    const [accountId, setAccountId] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -27,9 +27,9 @@ const LoginPage: React.FC = () => {
         setError('');
         setIsLoading(true);
         try {
-            const user = await login(username, password);
+            const user = await login(accountId, password);
             if (!user) {
-                setError('اسم المستخدم أو كلمة المرور غير صحيحة.');
+                setError('رقم الحساب أو كلمة المرور غير صحيحة.');
             }
         } catch (err) {
             setError('حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى.');
@@ -103,8 +103,8 @@ const LoginPage: React.FC = () => {
                         <form className="space-y-6" onSubmit={handleLoginSubmit}>
                             <div className="rounded-md shadow-sm -space-y-px">
                                 <div>
-                                    <label htmlFor="username" className="sr-only">اسم المستخدم</label>
-                                    <input id="username" name="username" type="text" required className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="اسم المستخدم" value={username} onChange={(e) => setUsername(e.target.value)} />
+                                    <label htmlFor="accountId" className="sr-only">رقم الحساب</label>
+                                    <input id="accountId" name="accountId" type="text" required className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" placeholder="رقم الحساب" value={accountId} onChange={(e) => setAccountId(e.target.value)} />
                                 </div>
                                 <div>
                                     <label htmlFor="password" className="sr-only">كلمة المرور</label>

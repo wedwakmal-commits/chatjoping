@@ -4,7 +4,7 @@ import { mockLogin, mockLogout, mockRegisterAdmin } from '../services/api';
 
 interface AuthContextType {
     user: User | null;
-    login: (username: string, password: string) => Promise<User | null>;
+    login: (accountId: string, password: string) => Promise<User | null>;
     logout: () => void;
     updateCurrentUser: (updatedUser: User) => void;
     registerAdmin: (username: string, password: string, adminKey: string) => Promise<User | null>;
@@ -22,8 +22,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     });
 
-    const login = useCallback(async (username: string, password: string): Promise<User | null> => {
-        const loggedInUser = await mockLogin(username, password);
+    const login = useCallback(async (accountId: string, password: string): Promise<User | null> => {
+        const loggedInUser = await mockLogin(accountId, password);
         if (loggedInUser) {
             setUser(loggedInUser);
             localStorage.setItem('user', JSON.stringify(loggedInUser));

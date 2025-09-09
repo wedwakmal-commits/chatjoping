@@ -32,13 +32,28 @@ const saveDb = (dbToSave: AppDB) => {
     }
 };
 
+const generateAccountId = () => Math.floor(100000 + Math.random() * 900000).toString();
+
 const loadDb = (): AppDB => {
     try {
         const storedDb = localStorage.getItem(STORAGE_KEY);
         if (storedDb) {
-            const parsedDb = JSON.parse(storedDb);
-            // Basic validation to ensure the loaded data has the expected structure
+            const parsedDb: AppDB = JSON.parse(storedDb);
+            // Basic validation and migration
             if (parsedDb.users && parsedDb.credentials && parsedDb.projects) {
+                // Migration logic: ensure all users have an accountId
+                let dbModified = false;
+                parsedDb.users = parsedDb.users.map(user => {
+                    if (!user.accountId) {
+                        dbModified = true;
+                        return { ...user, accountId: generateAccountId() };
+                    }
+                    return user;
+                });
+
+                if (dbModified) {
+                    saveDb(parsedDb);
+                }
                 return parsedDb;
             }
         }
@@ -56,16 +71,19 @@ let db: AppDB = loadDb();
 // --- MOCK DATA & HELPERS ---
 
 const ADMIN_REGISTRATION_KEY = 'super-secret-admin-key-123';
-const generateAccountId = () => Math.floor(100000 + Math.random() * 900000).toString();
+
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 // --- API FUNCTIONS ---
 
-export const mockLogin = async (username: string, password: string): Promise<User | null> => {
+export const mockLogin = async (accountId: string, password: string): Promise<User | null> => {
     await delay(500);
-    const creds = db.credentials[username];
-    if (creds && creds.password === password) {
-        return db.users.find(u => u.id === creds.userId) || null;
+    const user = db.users.find(u => u.accountId === accountId);
+    if (user) {
+        const creds = db.credentials[user.name];
+        if (creds && creds.password === password) {
+            return user;
+        }
     }
     return null;
 };
@@ -228,7 +246,7 @@ export const createUser = async (userData: Omit<User, 'id' | 'accountId'>, passw
         name: userData.name,
         role: userData.role,
         avatar: userData.avatar,
-        ...(userData.role === Role.ADMIN && { accountId: generateAccountId() })
+        accountId: generateAccountId(),
     };
     
     db.users.push(newUser);
@@ -256,13 +274,6 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
             delete db.credentials[oldUsername];
         }
     }
-    
-    if(updates.role === Role.ADMIN && !userToUpdate.accountId){
-        updates.accountId = generateAccountId();
-    } else if (updates.role === Role.EMPLOYEE && userToUpdate.accountId) {
-        updates.accountId = undefined;
-    }
-
 
     userToUpdate = { ...userToUpdate, ...updates };
     db.users = db.users.map(u => (u.id === userId ? userToUpdate! : u));
@@ -330,3 +341,23 @@ export const createGroupChat = async (name: string, participantIds: string[], cr
     saveDb(db);
     return newChat;
 };
+
+export const getUserPassword = async (userId: string): Promise<string | null> => {
+    await delay(150);
+    const user = db.users.find(u => u.id === userId);
+    if (user && db.credentials[user.name]) {
+        return db.credentials[user.name].password;
+    }
+    return null;
+}
+
+export const updateUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+    await delay(300);
+    const user = db.users.find(u => u.id === userId);
+    if (user && db.credentials[user.name]) {
+        db.credentials[user.name].password = newPassword;
+        saveDb(db);
+    } else {
+        throw new Error("User not found or credentials don't exist.");
+    }
+}
