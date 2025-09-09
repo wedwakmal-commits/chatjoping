@@ -5,17 +5,10 @@ let db: AppDB;
 
 const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2EwYWViZiI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MxLjY2IDAgMyAxLjM0IDMgM3MtMS4zNCAzLTMgMy0zLTEuMzQtMy0zIDEuMzQtMyAzLTN6bTAgMTRjLTIuNjcgMC04IDEuMzQtOCA0djJoMTZ2LTJjMC0yLjY2LTUuMzMtNC04LTR6Ii8+PC9zdmc+';
 
-const generateAdminKey = () => `ADMIN-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
 const initializeDB = () => {
     const storedDb = localStorage.getItem('app_db');
     if (storedDb) {
         db = JSON.parse(storedDb);
-        // Ensure admin key exists for older DB versions
-        if (!db.adminRegistrationKey) {
-            db.adminRegistrationKey = generateAdminKey();
-            saveDB();
-        }
     } else {
         const adminId = `admin-${Date.now()}`;
         db = {
@@ -27,8 +20,7 @@ const initializeDB = () => {
             chats: [],
             credentials: {
                 'admin': { password: 'password', userId: adminId }
-            },
-            adminRegistrationKey: generateAdminKey()
+            }
         };
         saveDB();
     }
@@ -58,16 +50,9 @@ export const mockLogout = () => {
     // No server-side action needed for mock logout
 };
 
-export const mockRegisterAdmin = async (username: string, password: string, adminKey: string): Promise<User | null> => {
+export const mockRegisterAdmin = async (username: string, password: string): Promise<User | null> => {
     await delay(500);
-    const hasAdmins = db.users.some(u => u.role === Role.ADMIN);
-
-    // If there are existing admins, the key is required.
-    // If it's the first admin, the key is not required.
-    if (hasAdmins && adminKey !== db.adminRegistrationKey) {
-        throw new Error('adminKeyIncorrect');
-    }
-
+    
     const accountId = username.toLowerCase().replace(/\s/g, '');
     if (db.credentials[accountId]) {
         throw new Error('usernameExists');
@@ -88,15 +73,15 @@ export const mockRegisterAdmin = async (username: string, password: string, admi
     return newAdmin;
 };
 
-export const hasAdminUsers = async (): Promise<boolean> => {
-    await delay(50);
-    return db.users.some(u => u.role === Role.ADMIN);
-};
-
 export const getUsers = async (): Promise<User[]> => {
     await delay(300);
     return [...db.users];
 };
+
+export const getUserById = async (userId: string): Promise<User | null> => {
+    await delay(50);
+    return db.users.find(u => u.id === userId) || null;
+}
 
 export const createUser = async (userData: { name: string; role: Role; password?: string; avatar: string; }): Promise<User> => {
     await delay(500);
@@ -293,27 +278,9 @@ export const importData = async (data: AppDB, sync: boolean): Promise<void> => {
         db.projects = data.projects;
         db.tasks = data.tasks;
         db.credentials = data.credentials;
-        db.adminRegistrationKey = data.adminRegistrationKey || generateAdminKey();
-
     } else {
         db = data;
-        if (!db.adminRegistrationKey) {
-            db.adminRegistrationKey = generateAdminKey();
-        }
     }
     saveDB();
     // we need to re-initialize the app state after this. A page reload is the simplest.
-};
-
-export const getAdminRegistrationKey = async (): Promise<string> => {
-    await delay(50);
-    return db.adminRegistrationKey;
-};
-
-export const regenerateAdminRegistrationKey = async (): Promise<string> => {
-    await delay(300);
-    const newKey = generateAdminKey();
-    db.adminRegistrationKey = newKey;
-    saveDB();
-    return newKey;
 };

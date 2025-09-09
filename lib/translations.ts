@@ -14,11 +14,9 @@ export const translations = {
       invalidCredentials: "رقم الحساب أو كلمة المرور غير صحيحة.",
       loginError: "حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى.",
       registerAdminTitle: "إنشاء حساب مدير",
-      registerAdminSubtitle: "يجب عليك إدخال مفتاح التسجيل الذي يزودك به مدير آخر.",
-      registerFirstAdminSubtitle: "سيتم إنشاء حساب المدير الأول للنظام. لا حاجة لمفتاح التسجيل.",
+      registerAdminSubtitle: "إنشاء حساب مدير جديد للنظام.",
       newUsername: "اسم المستخدم الجديد",
       confirmPassword: "تأكيد كلمة المرور",
-      adminKey: "مفتاح تسجيل المدراء",
       register: "إنشاء حساب",
       registering: "جاري التسجيل...",
       passwordsDoNotMatch: "كلمتا المرور غير متطابقتين.",
@@ -127,13 +125,6 @@ export const translations = {
       passwordUpdateError: "فشل تحديث كلمة المرور.",
       importData: "استيراد",
       exportData: "تصدير",
-      registrationKeyManagement: "مفتاح تسجيل المدراء",
-      keyDescription: "شارك هذا المفتاح مع المستخدمين الجدد الذين يحتاجون لإنشاء حساب مدير.",
-      currentKey: "المفتاح الحالي",
-      copy: "نسخ",
-      regenerate: "تجديد",
-      keyCopied: "تم نسخ المفتاح إلى الحافظة!",
-      keyRegenerated: "تم إنشاء مفتاح تسجيل جديد بنجاح.",
     },
     // User Management Modal
     userManagementModal: {
@@ -183,6 +174,16 @@ export const translations = {
       importWarningMessage: "سيقوم هذا الإجراء بدمج رسائل الدردشة من الملف مع الرسائل الحالية، ولكنه سيقوم بالكتابة فوق جميع البيانات الأخرى (المستخدمين، المشاريع، المهام). هل ترغب في المتابعة؟",
       importConfirm: "المتابعة",
     },
+    // Impersonation
+    impersonation: {
+      loginAs: "تسجيل الدخول كـ",
+      confirmTitle: "تأكيد تسجيل الدخول",
+      confirmMessage: "أنت على وشك تسجيل الدخول كـ {userName}. ستتمكن من رؤية التطبيق وتنفيذ الإجراءات نيابة عنه. هل أنت متأكد؟",
+      confirmButton: "نعم، قم بتسجيل الدخول",
+      banner: "أنت تقوم بتسجيل الدخول حاليًا كـ {userName}.",
+      endSession: "إنهاء الجلسة والعودة",
+      error: "فشل تسجيل الدخول كمستخدم آخر.",
+    },
     // Toasts
     toasts: {
       exportSuccess: "تم تصدير البيانات بنجاح!",
@@ -207,7 +208,6 @@ export const translations = {
     },
     // API Errors
     errors: {
-      adminKeyIncorrect: "مفتاح تسجيل المدراء غير صحيح.",
       usernameExists: "اسم المستخدم هذا موجود بالفعل.",
       userOrCredentialsNotFound: "المستخدم غير موجود أو بيانات الاعتماد غير موجودة.",
       oldPasswordIncorrect: "كلمة المرور الحالية التي أدخلتها غير صحيحة.",
@@ -226,11 +226,9 @@ export const translations = {
       invalidCredentials: "Invalid account ID or password.",
       loginError: "An error occurred during login. Please try again.",
       registerAdminTitle: "Create Admin Account",
-      registerAdminSubtitle: "You must enter the registration key provided by another admin.",
-      registerFirstAdminSubtitle: "The first system admin account will be created. No key is required.",
+      registerAdminSubtitle: "Create a new administrator account for the system.",
       newUsername: "New Username",
       confirmPassword: "Confirm Password",
-      adminKey: "Admin Registration Key",
       register: "Create Account",
       registering: "Registering...",
       passwordsDoNotMatch: "Passwords do not match.",
@@ -339,13 +337,6 @@ export const translations = {
       passwordUpdateError: "Failed to update password.",
       importData: "Import",
       exportData: "Export",
-      registrationKeyManagement: "Admin Registration Key",
-      keyDescription: "Share this key with new users who need to create an admin account.",
-      currentKey: "Current Key",
-      copy: "Copy",
-      regenerate: "Regenerate",
-      keyCopied: "Key copied to clipboard!",
-      keyRegenerated: "A new registration key has been generated.",
     },
     // User Management Modal
     userManagementModal: {
@@ -395,6 +386,16 @@ export const translations = {
       importWarningMessage: "This action will merge chat messages from the file with your current messages, but it will overwrite all other data (users, projects, tasks). Do you wish to continue?",
       importConfirm: "Continue",
     },
+    // Impersonation
+    impersonation: {
+      loginAs: "Login as this user",
+      confirmTitle: "Confirm Login As",
+      confirmMessage: "You are about to log in as {userName}. You will be able to see the application and perform actions on their behalf. Are you sure?",
+      confirmButton: "Yes, Login",
+      banner: "You are currently logged in as {userName}.",
+      endSession: "End Session & Return",
+      error: "Failed to log in as the other user.",
+    },
      // Toasts
     toasts: {
       exportSuccess: "Data exported successfully!",
@@ -419,7 +420,6 @@ export const translations = {
     },
     // API Errors
     errors: {
-      adminKeyIncorrect: "Incorrect admin registration key.",
       usernameExists: "This username already exists.",
       userOrCredentialsNotFound: "User not found or credentials don't exist.",
       oldPasswordIncorrect: "The current password you entered is incorrect.",

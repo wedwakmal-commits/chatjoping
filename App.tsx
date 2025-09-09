@@ -1,30 +1,23 @@
 import React from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
+import { ToastProvider } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
 import DashboardLayout from './pages/DashboardLayout';
-import { ToastProvider } from './context/ToastContext';
-import { LanguageProvider } from './context/LanguageContext';
 
 const AppContent: React.FC = () => {
     const { user } = useAuth();
-
-    if (!user) {
-        return <LoginPage />;
-    }
-
-    return <DashboardLayout />;
+    return user ? <DashboardLayout /> : <LoginPage />;
 };
 
 const App: React.FC = () => {
     return (
         <LanguageProvider>
-            <AuthProvider>
-                <ToastProvider>
-                    <div className="min-h-screen bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                        <AppContent />
-                    </div>
-                </ToastProvider>
-            </AuthProvider>
+            <ToastProvider>
+                <AuthProvider>
+                    <AppContent />
+                </AuthProvider>
+            </ToastProvider>
         </LanguageProvider>
     );
 };
