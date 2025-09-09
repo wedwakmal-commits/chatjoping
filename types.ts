@@ -57,4 +57,5 @@ export interface AppDB {
     tasks: Task[];
     chats: Chat[];
     credentials: Record<string, { password: string; userId: string; }>;
+    adminRegistrationKey: string;
 }

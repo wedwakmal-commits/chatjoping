@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Role, AppDB } from '../types';
-import { getUsers, createUser, updateUser, deleteUser, updatePassword, exportData, importData } from '../services/api';
+import { getUsers, createUser, updateUser, deleteUser, updatePassword, exportData, importData, getAdminRegistrationKey, regenerateAdminRegistrationKey } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useLanguage } from '../context/LanguageContext';
 import UserManagementModal from '../components/UserManagementModal';
 import ManageCredentialsModal from '../components/ManageCredentialsModal';
 import ConfirmationModal from '../components/ConfirmationModal';
-import { EditIcon, DeleteIcon, KeyIcon, ImportIcon, ExportIcon } from '../components/icons';
+import { EditIcon, DeleteIcon, KeyIcon, ImportIcon, ExportIcon, CopyIcon, RefreshIcon } from '../components/icons';
 
 const AdminPage: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -17,26 +17,31 @@ const AdminPage: React.FC = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [adminKey, setAdminKey] = useState('');
     const { user: currentUser, logout } = useAuth();
     const { addToast } = useToast();
     const { t } = useLanguage();
     const importFileRef = useRef<HTMLInputElement>(null);
 
-    const fetchUsers = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const fetchedUsers = await getUsers();
+            const [fetchedUsers, fetchedKey] = await Promise.all([
+                getUsers(),
+                getAdminRegistrationKey()
+            ]);
             setUsers(fetchedUsers);
+            setAdminKey(fetchedKey);
         } catch (error) {
-            console.error("Failed to fetch users:", error);
+            console.error("Failed to fetch admin data:", error);
         } finally {
             setIsLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+        fetchData();
+    }, [fetchData]);
 
     const handleOpenUserModal = (user: User | null = null) => {
         setSelectedUser(user);
@@ -61,7 +66,7 @@ const AdminPage: React.FC = () => {
                 await createUser(userData);
             }
             addToast({ type: 'success', message: 'User saved successfully!' });
-            fetchUsers();
+            fetchData();
             setIsUserModalOpen(false);
         } catch (error) {
             addToast({ type: 'error', message: 'Failed to save user.' });
@@ -86,7 +91,7 @@ const AdminPage: React.FC = () => {
             if (selectedUser.id === currentUser?.id) {
                 logout();
             } else {
-                fetchUsers();
+                fetchData();
             }
         } catch (error) {
             addToast({ type: 'error', message: 'Failed to delete user.' });
@@ -123,7 +128,7 @@ const AdminPage: React.FC = () => {
                 }
                 await importData(data, true); // true for sync
                 addToast({type: 'success', message: t('toasts.importSuccessSync')});
-                await fetchUsers(); // Re-fetch users
+                await fetchData(); // Re-fetch all data
             } catch (err) {
                 console.error("Import failed:", err);
                 addToast({type: 'error', message: t('toasts.importErrorInvalidFile')});
@@ -134,6 +139,17 @@ const AdminPage: React.FC = () => {
         };
         reader.readAsText(file);
     }
+
+    const handleCopyKey = () => {
+        navigator.clipboard.writeText(adminKey);
+        addToast({ type: 'info', message: t('adminPage.keyCopied') });
+    };
+
+    const handleRegenerateKey = async () => {
+        const newKey = await regenerateAdminRegistrationKey();
+        setAdminKey(newKey);
+        addToast({ type: 'success', message: t('adminPage.keyRegenerated') });
+    };
 
     return (
         <div className="p-6 md:p-8">
@@ -194,6 +210,26 @@ const AdminPage: React.FC = () => {
                         </table>
                     </div>
                 )}
+            </div>
+
+            <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">{t('adminPage.registrationKeyManagement')}</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{t('adminPage.keyDescription')}</p>
+                <div className="flex items-stretch space-x-2 rtl:space-x-reverse bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
+                    <input
+                        type="text"
+                        readOnly
+                        value={adminKey}
+                        className="flex-1 bg-transparent border-none text-gray-700 dark:text-gray-200 font-mono focus:ring-0 px-2"
+                        aria-label={t('adminPage.currentKey')}
+                    />
+                    <button onClick={handleCopyKey} title={t('adminPage.copy')} className="flex items-center px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition-colors">
+                        <CopyIcon className="w-5 h-5"/>
+                    </button>
+                    <button onClick={handleRegenerateKey} title={t('adminPage.regenerate')} className="flex items-center px-3 py-2 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors">
+                       <RefreshIcon className="w-5 h-5"/>
+                    </button>
+                </div>
             </div>
             
             <UserManagementModal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} onSave={handleSaveUser} user={selectedUser} />

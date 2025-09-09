@@ -127,6 +127,13 @@ export const translations = {
       passwordUpdateError: "فشل تحديث كلمة المرور.",
       importData: "استيراد",
       exportData: "تصدير",
+      registrationKeyManagement: "مفتاح تسجيل المدراء",
+      keyDescription: "شارك هذا المفتاح مع المستخدمين الجدد الذين يحتاجون لإنشاء حساب مدير.",
+      currentKey: "المفتاح الحالي",
+      copy: "نسخ",
+      regenerate: "تجديد",
+      keyCopied: "تم نسخ المفتاح إلى الحافظة!",
+      keyRegenerated: "تم إنشاء مفتاح تسجيل جديد بنجاح.",
     },
     // User Management Modal
     userManagementModal: {
@@ -332,6 +339,13 @@ export const translations = {
       passwordUpdateError: "Failed to update password.",
       importData: "Import",
       exportData: "Export",
+      registrationKeyManagement: "Admin Registration Key",
+      keyDescription: "Share this key with new users who need to create an admin account.",
+      currentKey: "Current Key",
+      copy: "Copy",
+      regenerate: "Regenerate",
+      keyCopied: "Key copied to clipboard!",
+      keyRegenerated: "A new registration key has been generated.",
     },
     // User Management Modal
     userManagementModal: {
